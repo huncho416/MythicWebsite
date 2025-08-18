@@ -18,7 +18,9 @@ import { useToast } from "@/hooks/use-toast";
 interface ForumThread extends Tables<'forum_threads'> {
   author: {
     id: string;
-    email: string;
+    display_name: string | null;
+    username: string | null;
+    avatar_url: string | null;
   } | null;
 }
 
@@ -108,20 +110,22 @@ export default function ForumCategory() {
 
       if (error) throw error;
       
-      // Get author information separately
+      // Get author information for each thread
       const threadsWithAuthors = await Promise.all(
         (data || []).map(async (thread) => {
           const { data: authorData } = await supabase
             .from('user_profiles')
-            .select('user_id')
+            .select('display_name, username, avatar_url')
             .eq('user_id', thread.author_id)
             .single();
 
           return {
             ...thread,
-            author: authorData ? { 
-              id: authorData.user_id, 
-              email: 'User' // Simplified for now
+            author: authorData ? {
+              id: thread.author_id,
+              display_name: authorData.display_name,
+              username: authorData.username,
+              avatar_url: authorData.avatar_url
             } : null
           };
         })
@@ -388,7 +392,7 @@ export default function ForumCategory() {
                     <div className="flex items-center gap-4 text-xs text-muted-foreground">
                       <span className="flex items-center gap-1">
                         <User className="h-3 w-3" />
-                        {thread.author?.email || 'Unknown'}
+                        {thread.author?.display_name || thread.author?.username || 'Unknown'}
                       </span>
                       <span className="flex items-center gap-1">
                         <Calendar className="h-3 w-3" />

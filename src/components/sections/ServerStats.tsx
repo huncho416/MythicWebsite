@@ -36,10 +36,12 @@ export default function ServerStats() {
       }
     };
 
-    // Mock Discord stats
+    // Mock Discord stats - in production, you can use Discord API
     const fetchDiscordStats = async () => {
       try {
         // For demo purposes, using mock data
+        // In production, you could use Discord widget API or your own bot
+        // Example: https://discord.com/api/guilds/1400580872800964819/widget.json
         setTimeout(() => {
           setDiscordStats({
             presence_count: Math.floor(Math.random() * 1000) + 500 // Random number between 500-1500
@@ -103,7 +105,7 @@ export default function ServerStats() {
                   {discordStats.presence_count.toLocaleString()}
                 </div>
                 <div className="text-sm text-muted-foreground">ONLINE</div>
-                <div className="text-xs text-muted-foreground">DISCORD.GG/MYTHICPVP</div>
+                <div className="text-xs text-muted-foreground">DISCORD.GG/CkgBWH4CRZ</div>
               </div>
             </div>
           </Card>

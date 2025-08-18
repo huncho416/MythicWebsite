@@ -10,7 +10,7 @@ export default function DiscordSection() {
           <div className="flex items-center justify-between">
             <CardTitle className="font-brand">Join the MythicPvP Discord</CardTitle>
             <Button asChild variant="hero" size="sm">
-              <a href="https://discord.gg/mythicpvp" target="_blank" rel="noopener noreferrer">
+              <a href="https://discord.gg/CkgBWH4CRZ" target="_blank" rel="noopener noreferrer">
                 <ExternalLink className="h-4 w-4 mr-2" />
                 Join Discord
               </a>
@@ -19,14 +19,14 @@ export default function DiscordSection() {
         </CardHeader>
         <CardContent className="p-0">
           <iframe
-            src="https://discord.com/widget?id=mythicpvp&theme=dark"
+            src="https://discord.com/widget?id=1400580872800964819&theme=dark"
             width="100%"
-            height="400"
+            height="500"
             allowTransparency={true}
             frameBorder="0"
             sandbox="allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts"
             title="Discord Widget"
-            className="w-full"
+            className="w-full rounded-b-lg"
           />
         </CardContent>
       </Card>

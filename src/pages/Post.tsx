@@ -13,6 +13,7 @@ export default function Post() {
   const { id, threadId } = useParams<{ id?: string; threadId?: string }>();
   const location = useLocation();
   const [post, setPost] = useState<Tables<'home_messages'> | Tables<'forum_threads'> | null>(null);
+  const [postAuthor, setPostAuthor] = useState<any>(null);
   const [comments, setComments] = useState<any[]>([]);
   const [newComment, setNewComment] = useState('');
   const [loading, setLoading] = useState(true);
@@ -57,6 +58,24 @@ export default function Post() {
           return;
         }
         setPost(data);
+        
+        // Load thread author information with roles
+        const { data: authorData } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('user_id', data.author_id)
+          .single();
+        
+        // Get author roles
+        const { data: rolesData } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', data.author_id);
+        
+        setPostAuthor({
+          ...authorData,
+          roles: rolesData?.map(r => r.role) || []
+        });
         loadThreadComments();
       } else {
         // Load home message
@@ -120,19 +139,37 @@ export default function Post() {
     try {
       const { data, error } = await supabase
         .from('forum_posts')
-        .select(`
-          *,
-          user_profiles (
-            display_name,
-            username,
-            avatar_url
-          )
-        `)
+        .select('*')
         .eq('thread_id', postId)
         .order('created_at', { ascending: true });
 
       if (error) throw error;
-      setComments(data || []);
+      
+      // Get user profiles and roles for each comment author
+      const commentsWithProfiles = await Promise.all(
+        (data || []).map(async (comment) => {
+          const { data: profileData } = await supabase
+            .from('user_profiles')
+            .select('*')
+            .eq('user_id', comment.author_id)
+            .single();
+          
+          const { data: rolesData } = await supabase
+            .from('user_roles')
+            .select('role')
+            .eq('user_id', comment.author_id);
+          
+          return {
+            ...comment,
+            user_profiles: profileData ? {
+              ...profileData,
+              roles: rolesData?.map(r => r.role) || []
+            } : null
+          };
+        })
+      );
+      
+      setComments(commentsWithProfiles);
     } catch (error) {
       console.error('Error loading thread posts:', error);
     } finally {
@@ -267,48 +304,147 @@ export default function Post() {
 
       <article className="max-w-4xl mx-auto">
         <Card>
-          <CardHeader className="space-y-4">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Badge variant="outline">{isThread ? 'Forum Thread' : 'News'}</Badge>
-              <span>•</span>
-              <div className="flex items-center gap-1">
-                <Calendar className="h-4 w-4" />
-                {formatDate(isThread ? threadPost.created_at : (homePost.published_at || homePost.created_at))}
-              </div>
-              <span>•</span>
-              <div className="flex items-center gap-1">
-                <Eye className="h-4 w-4" />
-                {post.view_count} views
-              </div>
-              <span>•</span>
-              <div className="flex items-center gap-1">
-                <MessageSquare className="h-4 w-4" />
-                {isThread ? threadPost.reply_count : (homePost.comment_count || 0)} {isThread ? 'replies' : 'comments'}
-              </div>
-            </div>
+          <CardContent className="p-0">
+            {isThread && postAuthor ? (
+              // Thread layout with user info on left and content on right
+              <div className="flex">
+                {/* User Info Sidebar */}
+                <div className="w-64 bg-secondary/20 p-6 border-r">
+                  <div className="text-center">
+                    <Avatar className="h-20 w-20 mx-auto mb-4">
+                      <AvatarImage src={postAuthor.avatar_url} />
+                      <AvatarFallback className="text-lg">
+                        {postAuthor.display_name?.charAt(0) || 
+                         postAuthor.username?.charAt(0) || 'U'}
+                      </AvatarFallback>
+                    </Avatar>
+                    
+                    <h3 className="font-semibold text-lg mb-2">
+                      {postAuthor.display_name || postAuthor.username || 'Unknown User'}
+                    </h3>
+                    
+                    {postAuthor.roles && postAuthor.roles.length > 0 && (
+                      <div className="space-y-1 mb-4">
+                        {postAuthor.roles.map((role: string) => (
+                          <Badge key={role} variant="outline" className="text-xs">
+                            {role.replace('_', ' ').toUpperCase()}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                    
+                    <div className="text-sm text-muted-foreground space-y-2">
+                      {postAuthor.minecraft_username && (
+                        <div>
+                          <strong>Minecraft:</strong> {postAuthor.minecraft_username}
+                        </div>
+                      )}
+                      {postAuthor.gender && (
+                        <div>
+                          <strong>Gender:</strong> {postAuthor.gender}
+                        </div>
+                      )}
+                      {postAuthor.birthday && (
+                        <div>
+                          <strong>Age:</strong> {new Date().getFullYear() - new Date(postAuthor.birthday).getFullYear()}
+                        </div>
+                      )}
+                      {postAuthor.location && (
+                        <div>
+                          <strong>Location:</strong> {postAuthor.location}
+                        </div>
+                      )}
+                      <div>
+                        <strong>Joined:</strong> {formatDate(postAuthor.join_date || postAuthor.created_at)}
+                      </div>
+                      {postAuthor.last_seen && (
+                        <div>
+                          <strong>Last seen:</strong> {formatDate(postAuthor.last_seen)}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Thread Content */}
+                <div className="flex-1 p-6">
+                  <CardHeader className="px-0 pt-0">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
+                      <Badge variant="outline">Forum Thread</Badge>
+                      <span>•</span>
+                      <div className="flex items-center gap-1">
+                        <Calendar className="h-4 w-4" />
+                        {formatDate(threadPost.created_at)}
+                      </div>
+                      <span>•</span>
+                      <div className="flex items-center gap-1">
+                        <Eye className="h-4 w-4" />
+                        {post.view_count} views
+                      </div>
+                      <span>•</span>
+                      <div className="flex items-center gap-1">
+                        <MessageSquare className="h-4 w-4" />
+                        {threadPost.reply_count} replies
+                      </div>
+                    </div>
 
-            <h1 className="text-3xl font-bold">{post.title}</h1>
-            
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <User className="h-4 w-4" />
-              <span>By {post.author_id}</span>
-            </div>
-          </CardHeader>
+                    <h1 className="text-3xl font-bold mb-4">{post.title}</h1>
+                  </CardHeader>
 
-          <CardContent className="space-y-6">
-            {!isThread && homePost.image_url && (
-              <img 
-                src={homePost.image_url}
-                alt={post.title}
-                className="w-full rounded-lg"
-                loading="lazy"
-              />
+                  <div 
+                    className="prose prose-gray dark:prose-invert max-w-none"
+                    dangerouslySetInnerHTML={{ __html: post.content }}
+                  />
+                </div>
+              </div>
+            ) : (
+              // Home message layout
+              <>
+                <CardHeader className="space-y-4">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Badge variant="outline">News</Badge>
+                    <span>•</span>
+                    <div className="flex items-center gap-1">
+                      <Calendar className="h-4 w-4" />
+                      {formatDate(homePost.published_at || homePost.created_at)}
+                    </div>
+                    <span>•</span>
+                    <div className="flex items-center gap-1">
+                      <Eye className="h-4 w-4" />
+                      {post.view_count} views
+                    </div>
+                    <span>•</span>
+                    <div className="flex items-center gap-1">
+                      <MessageSquare className="h-4 w-4" />
+                      {homePost.comment_count || 0} comments
+                    </div>
+                  </div>
+
+                  <h1 className="text-3xl font-bold">{post.title}</h1>
+                  
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <User className="h-4 w-4" />
+                    <span>By {post.author_id}</span>
+                  </div>
+                </CardHeader>
+
+                <CardContent className="space-y-6">
+                  {homePost.image_url && (
+                    <img 
+                      src={homePost.image_url}
+                      alt={post.title}
+                      className="w-full rounded-lg"
+                      loading="lazy"
+                    />
+                  )}
+
+                  <div 
+                    className="prose prose-gray dark:prose-invert max-w-none"
+                    dangerouslySetInnerHTML={{ __html: post.content }}
+                  />
+                </CardContent>
+              </>
             )}
-
-            <div 
-              className="prose prose-gray dark:prose-invert max-w-none"
-              dangerouslySetInnerHTML={{ __html: post.content }}
-            />
           </CardContent>
         </Card>
 
@@ -324,29 +460,91 @@ export default function Post() {
               <div className="space-y-6">
                 {comments.length > 0 ? (
                   comments.map((comment) => (
-                    <div key={comment.id} className="flex gap-3">
-                      <Avatar>
-                        <AvatarImage src={comment.user_profiles?.avatar_url} />
-                        <AvatarFallback>
-                          {comment.user_profiles?.display_name?.charAt(0) || 
-                           comment.user_profiles?.username?.charAt(0) || 'U'}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1">
-                        <div className="flex justify-between items-start">
-                          <span className="font-semibold">
-                            {comment.user_profiles?.display_name || 
-                             comment.user_profiles?.username || 'User'}
-                          </span>
-                          <span className="text-xs text-muted-foreground">
-                            {formatDate(comment.created_at)}
-                          </span>
+                    <div key={comment.id} className="border rounded-lg p-4">
+                      {isThread ? (
+                        // Thread reply layout with user info
+                        <div className="flex gap-4">
+                          <div className="w-48 bg-secondary/10 p-4 rounded-lg">
+                            <div className="text-center">
+                              <Avatar className="h-12 w-12 mx-auto mb-2">
+                                <AvatarImage src={comment.user_profiles?.avatar_url} />
+                                <AvatarFallback>
+                                  {comment.user_profiles?.display_name?.charAt(0) || 
+                                   comment.user_profiles?.username?.charAt(0) || 'U'}
+                                </AvatarFallback>
+                              </Avatar>
+                              
+                              <h4 className="font-semibold text-sm mb-1">
+                                {comment.user_profiles?.display_name || 
+                                 comment.user_profiles?.username || 'User'}
+                              </h4>
+                              
+                              {comment.user_profiles?.roles && comment.user_profiles.roles.length > 0 && (
+                                <div className="mb-2">
+                                  {comment.user_profiles.roles.map((role: string) => (
+                                    <Badge key={role} variant="outline" className="text-xs mb-1">
+                                      {role.replace('_', ' ').toUpperCase()}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              )}
+                              
+                              <div className="text-xs text-muted-foreground space-y-1">
+                                {comment.user_profiles?.minecraft_username && (
+                                  <div>MC: {comment.user_profiles.minecraft_username}</div>
+                                )}
+                                {comment.user_profiles?.gender && (
+                                  <div>{comment.user_profiles.gender}</div>
+                                )}
+                                {comment.user_profiles?.birthday && (
+                                  <div>Age: {new Date().getFullYear() - new Date(comment.user_profiles.birthday).getFullYear()}</div>
+                                )}
+                                <div>Joined: {comment.user_profiles?.join_date ? 
+                                  new Date(comment.user_profiles.join_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short' }) : 
+                                  'Unknown'}</div>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="flex-1">
+                            <div className="flex justify-between items-start mb-2">
+                              <span className="text-xs text-muted-foreground">
+                                {formatDate(comment.created_at)}
+                              </span>
+                            </div>
+                            <div 
+                              className="text-sm"
+                              dangerouslySetInnerHTML={{ __html: comment.content }}
+                            />
+                          </div>
                         </div>
-                        <div 
-                          className="text-sm mt-1"
-                          dangerouslySetInnerHTML={{ __html: comment.content }}
-                        />
-                      </div>
+                      ) : (
+                        // Home message comment layout
+                        <div className="flex gap-3">
+                          <Avatar>
+                            <AvatarImage src={comment.user_profiles?.avatar_url} />
+                            <AvatarFallback>
+                              {comment.user_profiles?.display_name?.charAt(0) || 
+                               comment.user_profiles?.username?.charAt(0) || 'U'}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1">
+                            <div className="flex justify-between items-start">
+                              <span className="font-semibold">
+                                {comment.user_profiles?.display_name || 
+                                 comment.user_profiles?.username || 'User'}
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                {formatDate(comment.created_at)}
+                              </span>
+                            </div>
+                            <div 
+                              className="text-sm mt-1"
+                              dangerouslySetInnerHTML={{ __html: comment.content }}
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))
                 ) : (
