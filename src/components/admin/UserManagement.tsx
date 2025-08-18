@@ -30,7 +30,7 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table";
-import { Search, UserPlus, Ban, Shield, Eye, Edit2 } from "lucide-react";
+import { Search, UserPlus, Ban, Shield, Eye, Edit2, Key, CheckCircle, UserCheck, Trash2 } from "lucide-react";
 import { Tables } from "@/integrations/supabase/types";
 
 interface UserWithProfile {
@@ -39,6 +39,7 @@ interface UserWithProfile {
   created_at: string;
   roles: string[];
   profile?: Tables<'user_profiles'>;
+  email_confirmed_at?: string | null;
 }
 
 export default function UserManagement() {
@@ -47,7 +48,29 @@ export default function UserManagement() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedUser, setSelectedUser] = useState<UserWithProfile | null>(null);
   const [showBanDialog, setShowBanDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [banReason, setBanReason] = useState("");
+  
+  // Edit user form
+  const [editForm, setEditForm] = useState({
+    email: "",
+    password: "",
+    confirmPassword: "",
+    username: "",
+    minecraftUsername: ""
+  });
+  
+  // Create user form
+  const [createForm, setCreateForm] = useState({
+    email: "",
+    password: "",
+    confirmPassword: "",
+    username: "",
+    minecraftUsername: "",
+    role: "user",
+    emailVerified: false
+  });
   const { toast } = useToast();
 
   useEffect(() => {
@@ -99,7 +122,8 @@ export default function UserManagement() {
           email: authUser?.email || 'Unknown Email',
           created_at: profile.created_at,
           roles: userRoles?.filter(role => role.user_id === profile.user_id).map(role => role.role) || [],
-          profile: profile
+          profile: profile,
+          email_confirmed_at: authUser?.email_confirmed_at || null
         };
       });
 
@@ -255,6 +279,244 @@ export default function UserManagement() {
     }
   };
 
+  const openEditUser = (user: UserWithProfile) => {
+    setSelectedUser(user);
+    setEditForm({
+      email: user.email,
+      password: "",
+      confirmPassword: "",
+      username: user.profile?.username || "",
+      minecraftUsername: user.profile?.minecraft_username || ""
+    });
+    setShowEditDialog(true);
+  };
+
+  const editUser = async () => {
+    if (!selectedUser) return;
+
+    try {
+      // Validate form
+      if (editForm.password && editForm.password !== editForm.confirmPassword) {
+        toast({
+          title: "Error",
+          description: "Passwords do not match",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Update auth user email if changed
+      if (editForm.email !== selectedUser.email) {
+        const { error: authError } = await supabase.auth.admin.updateUserById(
+          selectedUser.id,
+          { email: editForm.email }
+        );
+        if (authError) throw authError;
+      }
+
+      // Update password if provided
+      if (editForm.password) {
+        const { error: passwordError } = await supabase.auth.admin.updateUserById(
+          selectedUser.id,
+          { password: editForm.password }
+        );
+        if (passwordError) throw passwordError;
+      }
+
+      // Update user profile
+      const { error: profileError } = await supabase
+        .from('user_profiles')
+        .update({
+          username: editForm.username,
+          minecraft_username: editForm.minecraftUsername,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', selectedUser.id);
+
+      if (profileError) throw profileError;
+
+      toast({
+        title: "Success",
+        description: "User updated successfully",
+      });
+
+      setShowEditDialog(false);
+      await loadUsers();
+    } catch (error) {
+      console.error('Error updating user:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update user",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const createUser = async () => {
+    try {
+      // Validate form
+      if (!createForm.email || !createForm.password || !createForm.username) {
+        toast({
+          title: "Error",
+          description: "Email, password, and username are required",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (createForm.password !== createForm.confirmPassword) {
+        toast({
+          title: "Error",
+          description: "Passwords do not match",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Create auth user
+      const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
+        email: createForm.email,
+        password: createForm.password,
+        email_confirm: createForm.emailVerified
+      });
+
+      if (authError) throw authError;
+      if (!authUser.user) throw new Error("Failed to create user");
+
+      // Create user profile
+      const { error: profileError } = await supabase
+        .from('user_profiles')
+        .insert({
+          user_id: authUser.user.id,
+          username: createForm.username,
+          minecraft_username: createForm.minecraftUsername
+        });
+
+      if (profileError) throw profileError;
+
+      // Assign role if specified
+      if (createForm.role !== "user") {
+        const { error: roleError } = await supabase
+          .from('user_roles')
+          .insert({
+            user_id: authUser.user.id,
+            role: createForm.role as any
+          });
+
+        if (roleError) {
+          console.warn('Could not assign role:', roleError);
+        }
+      }
+
+      toast({
+        title: "Success",
+        description: "User created successfully",
+      });
+
+      setShowCreateDialog(false);
+      setCreateForm({
+        email: "",
+        password: "",
+        confirmPassword: "",
+        username: "",
+        minecraftUsername: "",
+        role: "user",
+        emailVerified: false
+      });
+      await loadUsers();
+    } catch (error) {
+      console.error('Error creating user:', error);
+      toast({
+        title: "Error",
+        description: "Failed to create user",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const verifyUserEmail = async (userId: string) => {
+    try {
+      // Update auth user to mark email as verified
+      const { error: authError } = await supabase.auth.admin.updateUserById(
+        userId,
+        { email_confirm: true }
+      );
+
+      if (authError) throw authError;
+
+      toast({
+        title: "Success",
+        description: "User email verified successfully",
+      });
+
+      await loadUsers();
+    } catch (error) {
+      console.error('Error verifying email:', error);
+      toast({
+        title: "Error",
+        description: "Failed to verify email",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const deleteUser = async (userId: string, userEmail: string) => {
+    if (!confirm(`Are you sure you want to permanently delete the user "${userEmail}"? This action cannot be undone and will remove all associated data.`)) {
+      return;
+    }
+
+    try {
+      // First delete user profile and related data
+      const { error: profileError } = await supabase
+        .from('user_profiles')
+        .delete()
+        .eq('user_id', userId);
+
+      if (profileError) {
+        console.warn('Could not delete user profile:', profileError);
+      }
+
+      // Delete user roles
+      const { error: rolesError } = await supabase
+        .from('user_roles')
+        .delete()
+        .eq('user_id', userId);
+
+      if (rolesError) {
+        console.warn('Could not delete user roles:', rolesError);
+      }
+
+      // Delete user punishments
+      const { error: punishmentsError } = await supabase
+        .from('user_punishments')
+        .delete()
+        .eq('user_id', userId);
+
+      if (punishmentsError) {
+        console.warn('Could not delete user punishments:', punishmentsError);
+      }
+
+      // Finally delete the auth user
+      const { error: authError } = await supabase.auth.admin.deleteUser(userId);
+
+      if (authError) throw authError;
+
+      toast({
+        title: "Success",
+        description: "User deleted successfully",
+      });
+
+      await loadUsers();
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete user",
+        variant: "destructive",
+      });
+    }
+  };
+
   const filteredUsers = users.filter(user => 
     user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
     user.profile?.username?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -382,6 +644,10 @@ export default function UserManagement() {
                 className="pl-10"
               />
             </div>
+            <Button onClick={() => setShowCreateDialog(true)}>
+              <UserPlus className="h-4 w-4 mr-2" />
+              Create User
+            </Button>
           </div>
 
           <div className="border rounded-lg">
@@ -389,6 +655,7 @@ export default function UserManagement() {
               <TableHeader>
                 <TableRow>
                   <TableHead>User</TableHead>
+                  <TableHead>Email Status</TableHead>
                   <TableHead>Minecraft</TableHead>
                   <TableHead>Roles</TableHead>
                   <TableHead>Status</TableHead>
@@ -408,6 +675,18 @@ export default function UserManagement() {
                           </div>
                         )}
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      {user.email_confirmed_at ? (
+                        <Badge variant="default" className="bg-green-500">
+                          <CheckCircle className="h-3 w-3 mr-1" />
+                          Verified
+                        </Badge>
+                      ) : (
+                        <Badge variant="destructive">
+                          Unverified
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell>
                       {user.profile?.minecraft_username || (
@@ -444,6 +723,25 @@ export default function UserManagement() {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => openEditUser(user)}
+                        >
+                          <Edit2 className="h-4 w-4" />
+                        </Button>
+                        
+                        {!user.email_confirmed_at && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => verifyUserEmail(user.id)}
+                            title="Manually verify email"
+                          >
+                            <CheckCircle className="h-4 w-4" />
+                          </Button>
+                        )}
+                        
                         <Select onValueChange={(role) => assignRole(user.id, role)}>
                           <SelectTrigger className="w-32">
                             <SelectValue placeholder="Add role" />
@@ -477,6 +775,14 @@ export default function UserManagement() {
                             <Ban className="h-4 w-4" />
                           </Button>
                         )}
+                        
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => deleteUser(user.id, user.email)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -525,6 +831,191 @@ export default function UserManagement() {
                 Ban User
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit User Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit User</DialogTitle>
+            <DialogDescription>
+              Update user details for {selectedUser?.email}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="editEmail">Email</Label>
+                <Input
+                  id="editEmail"
+                  type="email"
+                  value={editForm.email}
+                  onChange={(e) => setEditForm({...editForm, email: e.target.value})}
+                />
+              </div>
+              <div>
+                <Label htmlFor="editUsername">Username</Label>
+                <Input
+                  id="editUsername"
+                  value={editForm.username}
+                  onChange={(e) => setEditForm({...editForm, username: e.target.value})}
+                />
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="editMinecraftUsername">Minecraft Username</Label>
+              <Input
+                id="editMinecraftUsername"
+                value={editForm.minecraftUsername}
+                onChange={(e) => setEditForm({...editForm, minecraftUsername: e.target.value})}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="editPassword">New Password (optional)</Label>
+                <Input
+                  id="editPassword"
+                  type="password"
+                  value={editForm.password}
+                  onChange={(e) => setEditForm({...editForm, password: e.target.value})}
+                  placeholder="Leave blank to keep current password"
+                />
+              </div>
+              <div>
+                <Label htmlFor="editConfirmPassword">Confirm New Password</Label>
+                <Input
+                  id="editConfirmPassword"
+                  type="password"
+                  value={editForm.confirmPassword}
+                  onChange={(e) => setEditForm({...editForm, confirmPassword: e.target.value})}
+                  placeholder="Confirm new password"
+                />
+              </div>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => selectedUser && verifyUserEmail(selectedUser.id)}
+                disabled={!!selectedUser?.email_confirmed_at}
+              >
+                <UserCheck className="h-4 w-4 mr-2" />
+                {selectedUser?.email_confirmed_at ? 'Email Verified' : 'Verify Email Manually'}
+              </Button>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setShowEditDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={editUser}>
+              Update User
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create User Dialog */}
+      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Create New User</DialogTitle>
+            <DialogDescription>
+              Create a new user account manually
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="createEmail">Email *</Label>
+                <Input
+                  id="createEmail"
+                  type="email"
+                  value={createForm.email}
+                  onChange={(e) => setCreateForm({...createForm, email: e.target.value})}
+                  placeholder="user@example.com"
+                />
+              </div>
+              <div>
+                <Label htmlFor="createUsername">Username *</Label>
+                <Input
+                  id="createUsername"
+                  value={createForm.username}
+                  onChange={(e) => setCreateForm({...createForm, username: e.target.value})}
+                  placeholder="username"
+                />
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="createMinecraftUsername">Minecraft Username</Label>
+              <Input
+                id="createMinecraftUsername"
+                value={createForm.minecraftUsername}
+                onChange={(e) => setCreateForm({...createForm, minecraftUsername: e.target.value})}
+                placeholder="minecraft_username"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="createPassword">Password *</Label>
+                <Input
+                  id="createPassword"
+                  type="password"
+                  value={createForm.password}
+                  onChange={(e) => setCreateForm({...createForm, password: e.target.value})}
+                  placeholder="Strong password"
+                />
+              </div>
+              <div>
+                <Label htmlFor="createConfirmPassword">Confirm Password *</Label>
+                <Input
+                  id="createConfirmPassword"
+                  type="password"
+                  value={createForm.confirmPassword}
+                  onChange={(e) => setCreateForm({...createForm, confirmPassword: e.target.value})}
+                  placeholder="Confirm password"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="createRole">Initial Role</Label>
+                <Select value={createForm.role} onValueChange={(value) => setCreateForm({...createForm, role: value})}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="user">User</SelectItem>
+                    <SelectItem value="helper">Helper</SelectItem>
+                    <SelectItem value="moderator">Moderator</SelectItem>
+                    <SelectItem value="senior_moderator">Sr. Moderator</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="developer">Developer</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center space-x-2 pt-6">
+                <input
+                  type="checkbox"
+                  id="createEmailVerified"
+                  checked={createForm.emailVerified}
+                  onChange={(e) => setCreateForm({...createForm, emailVerified: e.target.checked})}
+                />
+                <Label htmlFor="createEmailVerified" className="text-sm">
+                  Mark email as verified
+                </Label>
+              </div>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={createUser}>
+              Create User
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
