@@ -1,0 +1,142 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    /* MythicPvP dark purple theme with lighter shades (HSL) */
+    --background: 250 35% 15%; /* Dark purple background */
+    --foreground: 210 40% 98%; /* Light text */
+
+    --card: 250 30% 18%; /* Dark purple cards with transparency */
+    --card-foreground: 210 40% 98%;
+
+    --popover: 250 30% 18%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 270 80% 65%; /* Lighter purple */
+    --primary-foreground: 250 35% 15%;
+
+    --secondary: 250 25% 22%; /* Lighter secondary */
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 250 25% 22%;
+    --muted-foreground: 213 20% 80%; /* Lighter muted text */
+
+    --accent: 190 90% 60%; /* Bright cyan */
+    --accent-foreground: 250 35% 15%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 250 25% 25%; /* Lighter borders */
+    --input: 250 25% 22%; /* Lighter input backgrounds */
+    --ring: 270 80% 65%;
+
+    --radius: 0.875rem;
+
+    /* Sidebar */
+    --sidebar-background: 250 30% 16%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 270 80% 65%;
+    --sidebar-primary-foreground: 250 35% 15%;
+    --sidebar-accent: 190 90% 60%;
+    --sidebar-accent-foreground: 250 35% 15%;
+    --sidebar-border: 250 25% 25%;
+    --sidebar-ring: 270 80% 65%;
+
+    /* Minecraft background with purple overlay */
+    --gradient-hero: 
+      linear-gradient(rgba(45, 35, 75, 0.85), rgba(35, 25, 65, 0.90)),
+      url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="%234a5568"/><rect x="0" y="0" width="16" height="16" fill="%23553c9a"/><rect x="32" y="0" width="16" height="16" fill="%23553c9a"/><rect x="16" y="16" width="16" height="16" fill="%23553c9a"/><rect x="48" y="16" width="16" height="16" fill="%23553c9a"/><rect x="0" y="32" width="16" height="16" fill="%23553c9a"/><rect x="32" y="32" width="16" height="16" fill="%23553c9a"/><rect x="16" y="48" width="16" height="16" fill="%23553c9a"/><rect x="48" y="48" width="16" height="16" fill="%23553c9a"/></svg>');
+    --shadow-glow: 0 0 40px hsl(var(--primary) / 0.35), 0 0 80px hsl(var(--accent) / 0.25);
+  }
+
+  .dark {
+    /* Keep consistent with main theme */
+    --background: 250 35% 15%;
+    --foreground: 210 40% 98%;
+
+    --card: 250 30% 18%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 250 30% 18%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 270 80% 65%; 
+    --primary-foreground: 250 35% 15%;
+
+    --secondary: 250 25% 22%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 250 25% 22%;
+    --muted-foreground: 213 20% 80%;
+
+    --accent: 190 90% 60%;
+    --accent-foreground: 250 35% 15%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 250 25% 25%;
+    --input: 250 25% 22%;
+    --ring: 270 80% 65%;
+
+    /* Same Minecraft background */
+    --gradient-hero: 
+      linear-gradient(rgba(45, 35, 75, 0.85), rgba(35, 25, 65, 0.90)),
+      url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="%234a5568"/><rect x="0" y="0" width="16" height="16" fill="%23553c9a"/><rect x="32" y="0" width="16" height="16" fill="%23553c9a"/><rect x="16" y="16" width="16" height="16" fill="%23553c9a"/><rect x="48" y="16" width="16" height="16" fill="%23553c9a"/><rect x="0" y="32" width="16" height="16" fill="%23553c9a"/><rect x="32" y="32" width="16" height="16" fill="%23553c9a"/><rect x="16" y="48" width="16" height="16" fill="%23553c9a"/><rect x="48" y="48" width="16" height="16" fill="%23553c9a"/></svg>');
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans;
+    background-image: var(--gradient-hero);
+    background-size: 64px 64px, 100% 100%;
+    background-attachment: fixed;
+    background-repeat: repeat, no-repeat;
+    min-height: 100vh;
+  }
+}
+
+/* Utilities bound to design tokens */
+@layer utilities {
+  .bg-hero {
+    background-image: var(--gradient-hero);
+  }
+  .shadow-glow {
+    box-shadow: var(--shadow-glow);
+  }
+  .story-link {
+    position: relative;
+  }
+  .story-link::after {
+    content: "";
+    position: absolute; left: 0; bottom: 0; height: 2px; width: 100%;
+    background: hsl(var(--primary)); transform-origin: bottom right; transform: scaleX(0);
+    transition: transform 300ms ease;
+  }
+  .story-link:hover::after { transform-origin: bottom left; transform: scaleX(1); }
+  
+  /* Enhanced card styling for Minecraft theme */
+  .bg-card\/60 {
+    background-color: hsla(var(--card) / 0.6);
+    backdrop-filter: blur(8px);
+    border: 1px solid hsla(var(--border) / 0.3);
+  }
+  
+  .bg-card\/80 {
+    background-color: hsla(var(--card) / 0.8);
+    backdrop-filter: blur(12px);
+    border: 1px solid hsla(var(--border) / 0.5);
+  }
+}
