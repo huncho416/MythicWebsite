@@ -1,5 +1,5 @@
 import { Link, NavLink } from "react-router-dom";
-const logo = "/logo.jpg";
+const logo = "/favicon.png";
 import { Button } from "@/components/ui/button";
 import { 
   DropdownMenu, 
@@ -21,7 +21,7 @@ const navItems = [
 
 export default function Header() {
   const [user, setUser] = useState<User | null>(null);
-  const [userProfile, setUserProfile] = useState<{ display_name?: string; username?: string } | null>(null);
+  const [userProfile, setUserProfile] = useState<{ username?: string } | null>(null);
   const [hasAdminAccess, setHasAdminAccess] = useState(false);
 
   useEffect(() => {
@@ -55,7 +55,7 @@ export default function Header() {
     try {
       const { data: profile } = await supabase
         .from('user_profiles')
-        .select('display_name, username')
+        .select('username')
         .eq('user_id', userId)
         .single();
       
@@ -115,7 +115,7 @@ export default function Header() {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="sm" className="flex items-center gap-2">
                   <UserIcon className="h-4 w-4" />
-                  {userProfile?.display_name || userProfile?.username || user.email?.split('@')[0] || 'User'}
+                  {userProfile?.username || user.email?.split('@')[0] || 'User'}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">

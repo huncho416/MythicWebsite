@@ -1,0 +1,21 @@
+{
+  "name": "MythicPvP | Premium Minecraft Network",
+  "short_name": "MythicPvP",
+  "description": "MythicPvP Minecraft server — play epic gamemodes, shop ranks, and join our Discord community.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1a1625",
+  "theme_color": "#8b5cf6",
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/favicon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

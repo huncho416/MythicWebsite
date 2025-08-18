@@ -25,7 +25,6 @@ export default function Profile() {
 
   const [profileForm, setProfileForm] = useState({
     username: "",
-    display_name: "",
     bio: "",
     minecraft_username: "",
     birthday: "",
@@ -102,7 +101,6 @@ export default function Profile() {
       if (userProfile) {
         setProfileForm({
           username: userProfile.username || "",
-          display_name: userProfile.display_name || "",
           bio: userProfile.bio || "",
           minecraft_username: userProfile.minecraft_username || "",
           birthday: (userProfile as any).birthday || "",
@@ -140,13 +138,56 @@ export default function Profile() {
       
       if (!user) return;
 
-      const { error } = await supabase
+      // Check if username is already taken by another user
+      const { data: existingUser, error: checkError } = await supabase
         .from('user_profiles')
-        .upsert({
-          user_id: user.id,
-          ...profileForm,
-          updated_at: new Date().toISOString()
-        });
+        .select('user_id')
+        .eq('username', profileForm.username)
+        .neq('user_id', user.id)
+        .single();
+
+      if (existingUser) {
+        throw new Error('Username is already taken. Please choose a different username.');
+      }
+
+      // Prepare the profile data with only valid fields
+      const profileData = {
+        user_id: user.id,
+        username: profileForm.username,
+        bio: profileForm.bio,
+        minecraft_username: profileForm.minecraft_username,
+        avatar_url: profileForm.avatar_url,
+        birthday: profileForm.birthday || null,
+        gender: profileForm.gender || null,
+        timezone: profileForm.timezone || null,
+        location: profileForm.location || null,
+        website: profileForm.website || null,
+        discord_username: profileForm.discord_username || null,
+        updated_at: new Date().toISOString()
+      };
+
+      // Check if profile exists first
+      const { data: existingProfile } = await supabase
+        .from('user_profiles')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
+
+      let error;
+      if (existingProfile) {
+        // Update existing profile
+        const result = await supabase
+          .from('user_profiles')
+          .update(profileData)
+          .eq('user_id', user.id);
+        error = result.error;
+      } else {
+        // Insert new profile
+        const result = await supabase
+          .from('user_profiles')
+          .insert([profileData]);
+        error = result.error;
+      }
 
       if (error) throw error;
 
@@ -160,7 +201,7 @@ export default function Profile() {
       console.error('Error saving profile:', error);
       toast({
         title: "Error",
-        description: "Failed to save profile",
+        description: `Failed to save profile: ${error.message}`,
         variant: "destructive"
       });
     } finally {
@@ -175,13 +216,19 @@ export default function Profile() {
       
       if (!user) return;
 
+      // Prepare the security data with only valid fields
+      const securityData = {
+        email_notifications: securityForm.email_notifications,
+        profile_visibility: securityForm.profile_visibility,
+        show_online_status: securityForm.show_online_status,
+        allow_friend_requests: securityForm.allow_friend_requests,
+        updated_at: new Date().toISOString()
+      };
+
       const { error } = await supabase
         .from('user_profiles')
-        .upsert({
-          user_id: user.id,
-          ...securityForm,
-          updated_at: new Date().toISOString()
-        });
+        .update(securityData)
+        .eq('user_id', user.id);
 
       if (error) throw error;
 
@@ -195,7 +242,7 @@ export default function Profile() {
       console.error('Error saving security settings:', error);
       toast({
         title: "Error",
-        description: "Failed to save security settings",
+        description: `Failed to save security settings: ${error.message}`,
         variant: "destructive"
       });
     } finally {
@@ -418,11 +465,11 @@ export default function Profile() {
                 <Avatar className="h-20 w-20">
                   <AvatarImage src={profile?.avatar_url || ""} />
                   <AvatarFallback className="text-xl">
-                    {profile?.display_name?.[0] || profile?.username?.[0] || "U"}
+                    {profile?.username?.[0] || "U"}
                   </AvatarFallback>
                 </Avatar>
                 <div className="space-y-2">
-                  <h2 className="text-2xl font-bold">{profile?.display_name || profile?.username || "User"}</h2>
+                  <h2 className="text-2xl font-bold">{profile?.username || "User"}</h2>
                   <div className="flex flex-wrap gap-2">
                     {userRoles.map(role => (
                       <Badge 
@@ -487,23 +534,21 @@ export default function Profile() {
             <CardContent className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="username">Username</Label>
+                  <Label htmlFor="username">Username *</Label>
                   <Input
                     id="username"
                     value={profileForm.username}
                     onChange={(e) => setProfileForm({...profileForm, username: e.target.value})}
                     placeholder="Your unique username"
+                    pattern="[a-zA-Z0-9_]+"
+                    minLength={3}
+                    maxLength={20}
+                    title="Username can only contain letters, numbers, and underscores"
+                    required
                   />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="display_name">Display Name</Label>
-                  <Input
-                    id="display_name"
-                    value={profileForm.display_name}
-                    onChange={(e) => setProfileForm({...profileForm, display_name: e.target.value})}
-                    placeholder="How others see your name"
-                  />
+                  <p className="text-xs text-muted-foreground">
+                    3-20 characters, letters, numbers, and underscores only
+                  </p>
                 </div>
 
                 <div className="space-y-2">
@@ -592,7 +637,7 @@ export default function Profile() {
                   <Avatar className="h-20 w-20">
                     <AvatarImage src={profileForm.avatar_url} />
                     <AvatarFallback className="text-xl">
-                      {profileForm.display_name?.[0] || profileForm.username?.[0] || "U"}
+                      {profileForm.username?.[0] || "U"}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex flex-col gap-2">

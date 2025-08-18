@@ -12,7 +12,9 @@ import { useNavigate } from "react-router-dom";
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [username, setUsername] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
   
@@ -53,17 +55,53 @@ export default function Login() {
     setLoading(true);
     
     try {
+      // First check if username is already taken
+      const { data: existingUser, error: checkError } = await supabase
+        .from('user_profiles')
+        .select('username')
+        .eq('username', username)
+        .single();
+
+      if (existingUser) {
+        throw new Error('Username is already taken. Please choose a different username.');
+      }
+
       const redirectUrl = `${window.location.origin}/`;
       
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          emailRedirectTo: redirectUrl
+          emailRedirectTo: redirectUrl,
+          data: {
+            username: username,
+            preferred_username: username
+          }
         }
       });
       
       if (error) throw error;
+
+      // Immediately create the profile with the correct username
+      if (data.user) {
+        // Create profile directly without waiting for trigger
+        const { error: profileError } = await supabase
+          .from('user_profiles')
+          .insert([{
+            user_id: data.user.id,
+            username: username,
+            join_date: new Date().toISOString()
+          }]);
+
+        if (profileError) {
+          console.error('Error creating profile:', profileError);
+          // If the profile already exists from trigger, update it
+          await supabase
+            .from('user_profiles')
+            .update({ username: username })
+            .eq('user_id', data.user.id);
+        }
+      }
       
       toast({
         title: "Account created!",
@@ -77,6 +115,40 @@ export default function Login() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email) {
+      toast({
+        title: "Email required",
+        description: "Please enter your email address first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setResetLoading(true);
+    
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      
+      if (error) throw error;
+      
+      toast({
+        title: "Reset email sent!",
+        description: "Check your email for a password reset link.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Reset failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setResetLoading(false);
     }
   };
 
@@ -126,13 +198,45 @@ export default function Login() {
                 <Button className="w-full" variant="hero" type="submit" disabled={loading}>
                   {loading ? "Logging in..." : "Login"}
                 </Button>
+                <div className="text-center">
+                  <Button 
+                    type="button" 
+                    variant="link" 
+                    onClick={handleForgotPassword}
+                    disabled={resetLoading}
+                    className="text-sm text-muted-foreground hover:text-primary"
+                  >
+                    {resetLoading ? "Sending..." : "Forgot your password?"}
+                  </Button>
+                </div>
               </form>
             </TabsContent>
             
             <TabsContent value="register" className="space-y-4 mt-6">
               <form onSubmit={handleSignup} className="space-y-4">
                 <div>
-                  <Label htmlFor="register-email">Email</Label>
+                  <Label htmlFor="register-username">Username *</Label>
+                  <Input 
+                    id="register-username" 
+                    type="text" 
+                    placeholder="myusername"
+                    value={username}
+                    onChange={(e) => {
+                      const value = e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '');
+                      setUsername(value);
+                    }}
+                    required
+                    minLength={3}
+                    maxLength={20}
+                    pattern="[a-z0-9_]+"
+                    title="Username can only contain lowercase letters, numbers, and underscores"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    3-20 characters, lowercase letters, numbers, and underscores only
+                  </p>
+                </div>
+                <div>
+                  <Label htmlFor="register-email">Email *</Label>
                   <Input 
                     id="register-email" 
                     type="email" 
@@ -141,9 +245,12 @@ export default function Login() {
                     onChange={(e) => setEmail(e.target.value)}
                     required
                   />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Your email will be private and used only for account verification
+                  </p>
                 </div>
                 <div>
-                  <Label htmlFor="register-password">Password</Label>
+                  <Label htmlFor="register-password">Password *</Label>
                   <Input 
                     id="register-password" 
                     type="password" 

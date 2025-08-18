@@ -15,26 +15,119 @@ import { Tables } from "@/integrations/supabase/types";
 
 const Index = () => {
   const [user, setUser] = useState<User | null>(null);
+  const [userProfile, setUserProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [homeMessages, setHomeMessages] = useState<any[]>([]);
   const [comments, setComments] = useState<{ [messageId: string]: any[] }>({});
   const [newComments, setNewComments] = useState<{ [messageId: string]: string }>({});
   const [showComments, setShowComments] = useState<{ [messageId: string]: boolean }>({});
+  const [topDonors, setTopDonors] = useState<any[]>([]);
+  const [recentPurchases, setRecentPurchases] = useState<any[]>([]);
+  const [featuredProduct, setFeaturedProduct] = useState({
+    name: "VIP",
+    price: "9.99",
+    image: ""
+  });
   const { toast } = useToast();
 
   useEffect(() => {
     checkAuth();
     loadHomeMessages();
+    loadFeaturedProduct();
+    loadTopDonors();
+    loadRecentPurchases();
   }, []);
 
   const checkAuth = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       setUser(user);
+      
+      if (user) {
+        // Fetch user profile to get username
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('username')
+          .eq('user_id', user.id)
+          .single();
+        
+        setUserProfile(profile);
+      }
     } catch (error) {
       console.error('Error checking auth:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadFeaturedProduct = async () => {
+    try {
+      // First get the featured package ID from settings
+      const { data: packageIdSetting, error: packageIdError } = await supabase
+        .from('site_settings')
+        .select('value')
+        .eq('key', 'featured_package_id')
+        .single();
+
+      if (packageIdError) {
+        console.error('Error loading featured package ID:', packageIdError);
+        return;
+      }
+
+      let packageId;
+      try {
+        const valueStr = String(packageIdSetting?.value || '');
+        packageId = valueStr ? JSON.parse(valueStr) : null;
+      } catch {
+        packageId = String(packageIdSetting?.value || '');
+      }
+
+      if (packageId) {
+        // Load the actual package data
+        const { data: packageData, error: packageError } = await supabase
+          .from('store_packages')
+          .select('name, price, image_url')
+          .eq('id', packageId)
+          .single();
+
+        if (packageError) {
+          console.error('Error loading featured package:', packageError);
+        } else if (packageData) {
+          setFeaturedProduct({
+            name: packageData.name,
+            price: packageData.price.toString(),
+            image: packageData.image_url || ""
+          });
+          return;
+        }
+      }
+
+      // Fallback to old settings-based approach
+      const { data, error } = await supabase
+        .from('site_settings')
+        .select('key, value')
+        .in('key', ['featured_product_name', 'featured_product_price', 'featured_product_image']);
+
+      if (error) throw error;
+
+      const settings = data?.reduce((acc, setting) => {
+        try {
+          acc[setting.key] = typeof setting.value === 'string' 
+            ? JSON.parse(setting.value) 
+            : setting.value;
+        } catch {
+          acc[setting.key] = setting.value;
+        }
+        return acc;
+      }, {} as any) || {};
+
+      setFeaturedProduct({
+        name: settings.featured_product_name || "VIP",
+        price: settings.featured_product_price || "9.99",
+        image: settings.featured_product_image || ""
+      });
+    } catch (error) {
+      console.error('Error loading featured product:', error);
     }
   };
 
@@ -117,6 +210,78 @@ const Index = () => {
     }
   };
 
+  const loadTopDonors = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select(`
+          user_id,
+          final_amount,
+          user_profiles!orders_user_id_fkey(username)
+        `)
+        .eq('status', 'completed')
+        .order('final_amount', { ascending: false })
+        .limit(10);
+
+      if (error) throw error;
+
+      // Group by user and sum their total spending
+      const userTotals = (data || []).reduce((acc: any, order: any) => {
+        const userId = order.user_id;
+        const username = order.user_profiles?.username || 'Unknown User';
+        
+        if (!acc[userId]) {
+          acc[userId] = {
+            username,
+            total: 0
+          };
+        }
+        acc[userId].total += parseFloat(order.final_amount);
+        return acc;
+      }, {});
+
+      // Convert to array and sort by total spending
+      const topDonorsList = Object.values(userTotals)
+        .sort((a: any, b: any) => b.total - a.total)
+        .slice(0, 5);
+
+      setTopDonors(topDonorsList);
+    } catch (error) {
+      console.error('Error loading top donors:', error);
+    }
+  };
+
+  const loadRecentPurchases = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select(`
+          id,
+          created_at,
+          user_profiles!orders_user_id_fkey(username),
+          order_items(
+            store_packages(name)
+          )
+        `)
+        .eq('status', 'completed')
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (error) throw error;
+
+      // Format the recent purchases
+      const purchases = (data || []).map((order: any) => ({
+        username: order.user_profiles?.username || 'Unknown User',
+        package: order.order_items?.[0]?.store_packages?.name || 'Unknown Package',
+        date: order.created_at
+      }));
+
+      setRecentPurchases(purchases.slice(0, 5));
+    } catch (error) {
+      console.error('Error loading recent purchases:', error);
+    }
+  };
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
@@ -132,7 +297,7 @@ const Index = () => {
     <div>
       <Helmet>
         <title>MythicPvP | Minecraft Server and Store</title>
-        <meta name="description" content="Play on MythicPvP, shop ranks, and join our Discord. Featured products and top donors." />
+        <meta name="description" content="Play on MythicPvP and shop ranks. Featured products and top donors." />
         <link rel="canonical" href={canonical} />
       </Helmet>
       <Hero />
@@ -175,7 +340,7 @@ const Index = () => {
                   />
                   <div>
                     <h3 className="font-brand text-xl">Welcome back!</h3>
-                    <p className="text-sm text-muted-foreground">You're logged in as {user.email}</p>
+                    <p className="text-sm text-muted-foreground">You're logged in as {userProfile?.username || user.email}</p>
                   </div>
                 </div>
                 <div className="flex gap-3">
@@ -322,9 +487,19 @@ const Index = () => {
                 <CardTitle className="font-brand">Featured Product</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
+                {featuredProduct.image && (
+                  <div className="w-full h-32 rounded-md overflow-hidden">
+                    <img 
+                      src={featuredProduct.image} 
+                      alt={featuredProduct.name}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                    />
+                  </div>
+                )}
                 <div className="flex items-center justify-between">
-                  <span className="font-semibold">VIP</span>
-                  <span className="text-sm text-muted-foreground">9.99 USD</span>
+                  <span className="font-semibold">{featuredProduct.name}</span>
+                  <span className="text-sm text-muted-foreground">{featuredProduct.price} USD</span>
                 </div>
                 <Button asChild variant="hero" className="w-full"><Link to="/store">Buy Now</Link></Button>
               </CardContent>
@@ -336,8 +511,16 @@ const Index = () => {
               </CardHeader>
               <CardContent>
                 <ul className="space-y-3 text-sm">
-                  <li className="flex items-center justify-between"><span>#1 DragonSlayer_88</span><span>250.00 USD</span></li>
-                  <li className="flex items-center justify-between"><span>#2 LeaderOS</span><span>100.00 USD</span></li>
+                  {topDonors.length > 0 ? (
+                    topDonors.map((donor: any, index: number) => (
+                      <li key={index} className="flex items-center justify-between">
+                        <span>#{index + 1} {donor.username}</span>
+                        <span>${donor.total.toFixed(2)} USD</span>
+                      </li>
+                    ))
+                  ) : (
+                    <li className="text-sm text-muted-foreground">No donors yet</li>
+                  )}
                 </ul>
               </CardContent>
             </Card>
@@ -348,21 +531,29 @@ const Index = () => {
               </CardHeader>
               <CardContent>
                 <ul className="space-y-2 text-sm text-muted-foreground">
-                  <li className="flex items-center justify-between"><span>LeaderOS</span><span>VIP+</span></li>
-                  <li className="flex items-center justify-between"><span>demo</span><span>MVIP</span></li>
+                  {recentPurchases.length > 0 ? (
+                    recentPurchases.map((purchase: any, index: number) => (
+                      <li key={index} className="flex items-center justify-between">
+                        <span>{purchase.username}</span>
+                        <span>{purchase.package}</span>
+                      </li>
+                    ))
+                  ) : (
+                    <li className="text-sm text-muted-foreground">No recent purchases</li>
+                  )}
                 </ul>
               </CardContent>
             </Card>
 
-            <Card className="bg-secondary/40">
-              <CardHeader>
-                <CardTitle className="font-brand">Discord</CardTitle>
-              </CardHeader>
-              <CardContent className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">864 Members Online</p>
-                <Button asChild variant="neon"><a href="https://discord.com/invite/mythicpvp" target="_blank" rel="noreferrer">Join</a></Button>
-              </CardContent>
-            </Card>
+            <iframe 
+              src="https://discord.com/widget?id=1400580872800964819&theme=dark" 
+              width="350" 
+              height="500" 
+              allowTransparency={true} 
+              frameBorder="0" 
+              sandbox="allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts"
+              title="Discord Server Widget"
+            />
           </div>
         </div>
       </section>

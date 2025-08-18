@@ -96,7 +96,6 @@ src/
 │   ├── sections/           # Homepage sections
 │   │   ├── Hero.tsx
 │   │   ├── ServerStats.tsx
-│   │   ├── DiscordSection.tsx
 │   │   └── ...
 │   └── ui/                 # Reusable UI components
 ├── pages/                  # Route pages
@@ -229,7 +228,6 @@ src/
 - Update server info in components
 
 ### Server Integration
-- Update Discord widget ID in `DiscordSection.tsx`
 - Modify server IP in `ServerStats.tsx`
 - Connect real server API for live stats
 - Integrate with Minecraft server plugins

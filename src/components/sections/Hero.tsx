@@ -20,7 +20,7 @@ export default function Hero() {
               <div className="flex flex-wrap gap-3">
                 <Button asChild variant="hero" size="lg"><Link to="/store">Shop Ranks</Link></Button>
                 <Button asChild variant="neon" size="lg"><Link to="/forums">Visit Forums</Link></Button>
-                <Button asChild variant="outline" size="lg"><a href="#discord">Join Discord</a></Button>
+                <Button asChild variant="outline" size="lg"><a href="https://discord.gg/MqdWE249AT" target="_blank" rel="noopener noreferrer">Join Discord</a></Button>
               </div>
             </div>
             <div className="hidden md:block">

@@ -11,6 +11,7 @@ import Forums from "@/pages/Forums";
 import ForumCategory from "@/pages/ForumCategory";
 import Support from "@/pages/Support";
 import Login from "@/pages/Login";
+import ResetPassword from "@/pages/ResetPassword";
 import Admin from "@/pages/Admin";
 import Profile from "@/pages/Profile";
 import Post from "@/pages/Post";
@@ -34,6 +35,7 @@ const App = () => (
               <Route path="/forums/thread/:threadId" element={<Post />} />
               <Route path="/support" element={<Support />} />
               <Route path="/login" element={<Login />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/admin" element={<Admin />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/post/:id" element={<Post />} />

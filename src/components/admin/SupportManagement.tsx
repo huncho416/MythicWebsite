@@ -39,7 +39,8 @@ import {
   XCircle, 
   AlertTriangle,
   User,
-  Send
+  Send,
+  Trash2
 } from "lucide-react";
 import { Tables } from "@/integrations/supabase/types";
 
@@ -80,13 +81,13 @@ export default function SupportManagement() {
         (data || []).map(async (ticket) => {
           const { data: userProfile } = await supabase
             .from('user_profiles')
-            .select('username, display_name')
+            .select('username')
             .eq('user_id', ticket.user_id)
             .single();
             
           const { data: assignedProfile } = ticket.assigned_to ? await supabase
             .from('user_profiles')
-            .select('username, display_name')
+            .select('username')
             .eq('user_id', ticket.assigned_to)
             .single() : { data: null };
             
@@ -118,7 +119,7 @@ export default function SupportManagement() {
         .from('support_ticket_messages')
         .select(`
           *,
-          author_profile:user_profiles!author_id(username, display_name)
+          author_profile:user_profiles!author_id(username)
         `)
         .eq('ticket_id', ticketId)
         .order('created_at', { ascending: true });
@@ -240,6 +241,50 @@ export default function SupportManagement() {
     }
   };
 
+  const deleteTicket = async (ticketId: string) => {
+    if (!confirm('Are you sure you want to delete this ticket? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      // First delete all messages associated with the ticket
+      const { error: messagesError } = await supabase
+        .from('support_ticket_messages')
+        .delete()
+        .eq('ticket_id', ticketId);
+
+      if (messagesError) throw messagesError;
+
+      // Then delete the ticket
+      const { error: ticketError } = await supabase
+        .from('support_tickets')
+        .delete()
+        .eq('id', ticketId);
+
+      if (ticketError) throw ticketError;
+
+      toast({
+        title: "Success",
+        description: "Ticket deleted successfully",
+      });
+
+      loadTickets();
+      
+      // Clear selected ticket if it was the deleted one
+      if (selectedTicket && selectedTicket.id === ticketId) {
+        setSelectedTicket(null);
+        setTicketMessages([]);
+      }
+    } catch (error) {
+      console.error('Error deleting ticket:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete ticket",
+        variant: "destructive",
+      });
+    }
+  };
+
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
       open: "bg-blue-500",
@@ -330,9 +375,7 @@ export default function SupportManagement() {
                               </div>
                             </TableCell>
                             <TableCell>
-                              {ticket.user_profile?.display_name || 
-                               ticket.user_profile?.username || 
-                               ticket.user_profile?.email || 
+                              {ticket.user_profile?.username || 
                                "Unknown User"}
                             </TableCell>
                             <TableCell>
@@ -346,8 +389,7 @@ export default function SupportManagement() {
                               </Badge>
                             </TableCell>
                             <TableCell>
-                              {ticket.assigned_profile?.display_name || 
-                               ticket.assigned_profile?.username || 
+                              {ticket.assigned_profile?.username || 
                                "Unassigned"}
                             </TableCell>
                             <TableCell>
@@ -407,6 +449,18 @@ export default function SupportManagement() {
                         <span className="text-sm font-medium">Category:</span>
                         <span className="text-sm">{selectedTicket.category || "General"}</span>
                       </div>
+                      
+                      <div className="flex justify-between items-center pt-2">
+                        <span className="text-sm font-medium">Actions:</span>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => deleteTicket(selectedTicket.id)}
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete Ticket
+                        </Button>
+                      </div>
                     </div>
 
                     {/* Original Description */}
@@ -432,8 +486,7 @@ export default function SupportManagement() {
                           >
                             <div className="flex justify-between items-center mb-1">
                               <span className="font-medium text-xs">
-                                {message.author_profile?.display_name || 
-                                 message.author_profile?.username || 
+                                {message.author_profile?.username || 
                                  "Unknown"}
                               </span>
                               <span className="text-xs text-muted-foreground">

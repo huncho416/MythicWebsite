@@ -67,6 +67,7 @@ export default function StoreManagement() {
   const [showPackageDialog, setShowPackageDialog] = useState(false);
   const [showDiscountDialog, setShowDiscountDialog] = useState(false);
   const [showGiftCardDialog, setShowGiftCardDialog] = useState(false);
+  const [showOrderDialog, setShowOrderDialog] = useState(false);
   const [showEditDiscountDialog, setShowEditDiscountDialog] = useState(false);
   const [showEditGiftCardDialog, setShowEditGiftCardDialog] = useState(false);
   
@@ -86,6 +87,10 @@ export default function StoreManagement() {
   
   const [giftCardForm, setGiftCardForm] = useState({
     amount: "", expires_at: ""
+  });
+  
+  const [orderForm, setOrderForm] = useState({
+    user_email: "", package_id: "", quantity: "1", discount_code: "", gift_card_code: "", payment_method: "admin_created"
   });
 
   const { toast } = useToast();
@@ -554,11 +559,23 @@ export default function StoreManagement() {
       const fileExt = file.name.split('.').pop();
       const fileName = `packages/${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
 
+      // First, try to create the bucket if it doesn't exist
+      const { error: bucketError } = await supabase.storage.createBucket('package-images', {
+        public: true,
+        allowedMimeTypes: ['image/*'],
+        fileSizeLimit: 5242880 // 5MB
+      });
+
+      // If bucket already exists, that's fine (we'll get an error but continue)
+      
       const { error: uploadError } = await supabase.storage
         .from('package-images')
-        .upload(fileName, file);
+        .upload(fileName, file, { upsert: true });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error('Upload error:', uploadError);
+        throw uploadError;
+      }
 
       const { data } = supabase.storage
         .from('package-images')
@@ -574,7 +591,7 @@ export default function StoreManagement() {
       console.error('Error uploading image:', error);
       toast({
         title: "Error",
-        description: "Failed to upload image",
+        description: `Failed to upload image: ${error.message}`,
         variant: "destructive"
       });
     }
@@ -582,6 +599,160 @@ export default function StoreManagement() {
 
   const removePackageImage = () => {
     setPackageForm(prev => ({ ...prev, image_url: "" }));
+  };
+
+  const createOrder = async () => {
+    try {
+      // First, find the user by email - simplified approach
+      let targetUser = null;
+      try {
+        const { data: authUsers } = await supabase.auth.admin.listUsers();
+        targetUser = authUsers?.users?.find((u: any) => u.email === orderForm.user_email);
+      } catch (authError) {
+        console.warn('Could not access auth users:', authError);
+        toast({
+          title: "Error",
+          description: "Cannot access user data. Please check admin permissions.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      if (!targetUser) {
+        toast({
+          title: "Error",
+          description: "User not found with that email address",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Get the package details
+      const { data: packageData, error: packageError } = await supabase
+        .from('store_packages')
+        .select('*')
+        .eq('id', orderForm.package_id)
+        .single();
+
+      if (packageError || !packageData) {
+        toast({
+          title: "Error",
+          description: "Package not found",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const quantity = parseInt(orderForm.quantity) || 1;
+      const unitPrice = packageData.price;
+      const totalAmount = unitPrice * quantity;
+      let discountAmount = 0;
+      let giftCardAmount = 0;
+
+      // Apply discount if provided
+      if (orderForm.discount_code) {
+        const { data: discount } = await supabase
+          .from('discounts')
+          .select('*')
+          .eq('code', orderForm.discount_code)
+          .eq('is_active', true)
+          .single();
+
+        if (discount) {
+          if (discount.discount_type === 'percentage') {
+            discountAmount = (totalAmount * discount.discount_value) / 100;
+          } else {
+            discountAmount = discount.discount_value;
+          }
+        }
+      }
+
+      // Apply gift card if provided
+      if (orderForm.gift_card_code) {
+        const { data: giftCard } = await supabase
+          .from('gift_cards')
+          .select('*')
+          .eq('code', orderForm.gift_card_code)
+          .eq('is_active', true)
+          .single();
+
+        if (giftCard && giftCard.remaining_balance > 0) {
+          giftCardAmount = Math.min(giftCard.remaining_balance, totalAmount - discountAmount);
+        }
+      }
+
+      const finalAmount = Math.max(0, totalAmount - discountAmount - giftCardAmount);
+
+      // Generate order number
+      const orderNumber = 'ORD-' + Date.now();
+
+      // Create the order
+      const { data: order, error: orderError } = await supabase
+        .from('orders')
+        .insert({
+          order_number: orderNumber,
+          user_id: targetUser.id,
+          total_amount: totalAmount,
+          discount_amount: discountAmount,
+          gift_card_amount: giftCardAmount,
+          final_amount: finalAmount,
+          status: 'completed', // Admin created orders are automatically completed
+          payment_method: orderForm.payment_method,
+          discount_code: orderForm.discount_code || null,
+          gift_card_code: orderForm.gift_card_code || null
+        })
+        .select()
+        .single();
+
+      if (orderError) throw orderError;
+
+      // Create order items
+      const { error: itemError } = await supabase
+        .from('order_items')
+        .insert({
+          order_id: order.id,
+          package_id: orderForm.package_id,
+          quantity: quantity,
+          unit_price: unitPrice,
+          total_price: totalAmount
+        });
+
+      if (itemError) throw itemError;
+
+      // Update gift card balance if used
+      if (orderForm.gift_card_code && giftCardAmount > 0) {
+        const { data: giftCard } = await supabase
+          .from('gift_cards')
+          .select('remaining_balance')
+          .eq('code', orderForm.gift_card_code)
+          .single();
+
+        if (giftCard) {
+          await supabase
+            .from('gift_cards')
+            .update({ 
+              remaining_balance: giftCard.remaining_balance - giftCardAmount,
+              is_active: (giftCard.remaining_balance - giftCardAmount) > 0
+            })
+            .eq('code', orderForm.gift_card_code);
+        }
+      }
+
+      toast({ 
+        title: "Success", 
+        description: `Order ${orderNumber} created successfully` 
+      });
+      setShowOrderDialog(false);
+      setOrderForm({ user_email: "", package_id: "", quantity: "1", discount_code: "", gift_card_code: "", payment_method: "admin_created" });
+      loadStoreData();
+    } catch (error) {
+      console.error('Error creating order:', error);
+      toast({
+        title: "Error",
+        description: "Failed to create order",
+        variant: "destructive",
+      });
+    }
   };
 
   if (loading) {
@@ -1269,6 +1440,89 @@ export default function StoreManagement() {
             <TabsContent value="orders" className="space-y-4">
               <div className="flex justify-between items-center">
                 <h3 className="text-lg font-medium">Recent Orders</h3>
+                <Dialog open={showOrderDialog} onOpenChange={setShowOrderDialog}>
+                  <DialogTrigger asChild>
+                    <Button>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Create Order
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-2xl">
+                    <DialogHeader>
+                      <DialogTitle>Create Order</DialogTitle>
+                      <DialogDescription>
+                        Manually create an order for a user
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div>
+                        <Label htmlFor="orderUserEmail">User Email</Label>
+                        <Input
+                          id="orderUserEmail"
+                          value={orderForm.user_email}
+                          onChange={(e) => setOrderForm({...orderForm, user_email: e.target.value})}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="orderPackage">Package</Label>
+                        <Select onValueChange={(value) => setOrderForm({...orderForm, package_id: value})}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select package" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {packages.map(pkg => (
+                              <SelectItem key={pkg.id} value={pkg.id}>{pkg.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label htmlFor="orderQuantity">Quantity</Label>
+                        <Input
+                          id="orderQuantity"
+                          type="number"
+                          value={orderForm.quantity}
+                          onChange={(e) => setOrderForm({...orderForm, quantity: e.target.value})}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="orderDiscountCode">Discount Code</Label>
+                        <Input
+                          id="orderDiscountCode"
+                          value={orderForm.discount_code}
+                          onChange={(e) => setOrderForm({...orderForm, discount_code: e.target.value})}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="orderGiftCardCode">Gift Card Code</Label>
+                        <Input
+                          id="orderGiftCardCode"
+                          value={orderForm.gift_card_code}
+                          onChange={(e) => setOrderForm({...orderForm, gift_card_code: e.target.value})}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="orderPaymentMethod">Payment Method</Label>
+                        <Select onValueChange={(value) => setOrderForm({...orderForm, payment_method: value})}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select payment method" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="admin_created">Admin Created</SelectItem>
+                            <SelectItem value="paypal">PayPal</SelectItem>
+                            <SelectItem value="stripe">Stripe</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <Button variant="outline" onClick={() => setShowOrderDialog(false)}>
+                        Cancel
+                      </Button>
+                      <Button onClick={createOrder}>Create Order</Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
               </div>
 
               <div className="border rounded-lg">

@@ -49,6 +49,7 @@ import { Tables } from "@/integrations/supabase/types";
 
 export default function SettingsManagement() {
   const [settings, setSettings] = useState<Tables<'site_settings'>[]>([]);
+  const [packages, setPackages] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("general");
   const [editingSettings, setEditingSettings] = useState<Record<string, any>>({});
@@ -67,6 +68,7 @@ export default function SettingsManagement() {
 
   useEffect(() => {
     loadSettings();
+    loadPackages();
   }, []);
 
   const loadSettings = async () => {
@@ -104,6 +106,21 @@ export default function SettingsManagement() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadPackages = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('store_packages')
+        .select('id, name')
+        .eq('is_active', true)
+        .order('name');
+
+      if (error) throw error;
+      setPackages(data || []);
+    } catch (error) {
+      console.error('Error loading packages:', error);
     }
   };
 
@@ -231,13 +248,36 @@ export default function SettingsManagement() {
       forum: MessageSquare,
       support: Users,
       payments: CreditCard,
-      social: Users
+      social: Users,
+      featured: Server
     };
     return icons[category] || Settings;
   };
 
   const renderSettingInput = (setting: Tables<'site_settings'>) => {
     const value = editingSettings[setting.key];
+    
+    // Special handling for featured package selection
+    if (setting.key === 'featured_package_id') {
+      return (
+        <Select 
+          value={value || ''} 
+          onValueChange={(selectedValue) => handleSettingChange(setting.key, selectedValue)}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Select featured package" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">No featured package</SelectItem>
+            {packages.map((pkg) => (
+              <SelectItem key={pkg.id} value={pkg.id}>
+                {pkg.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      );
+    }
     
     if (typeof value === 'boolean') {
       return (
@@ -347,6 +387,7 @@ export default function SettingsManagement() {
                           <SelectItem value="support">Support</SelectItem>
                           <SelectItem value="payments">Payments</SelectItem>
                           <SelectItem value="social">Social</SelectItem>
+                          <SelectItem value="featured">Featured</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>

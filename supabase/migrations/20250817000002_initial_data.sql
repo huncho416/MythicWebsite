@@ -12,7 +12,10 @@ INSERT INTO public.site_settings (key, value, description, category, is_public) 
 ('stripe_enabled', 'false', 'Enable Stripe payments', 'payments', false),
 ('max_tickets_per_user', '5', 'Maximum open tickets per user', 'support', false),
 ('forum_posts_per_page', '10', 'Forum posts per page', 'forum', true),
-('auto_close_tickets_days', '7', 'Auto-close resolved tickets after X days', 'support', false)
+('auto_close_tickets_days', '7', 'Auto-close resolved tickets after X days', 'support', false),
+('featured_product_name', '"VIP"', 'Featured product name', 'featured', true),
+('featured_product_price', '"9.99"', 'Featured product price', 'featured', true),
+('featured_product_image', '""', 'Featured product image URL', 'featured', true)
 ON CONFLICT (key) DO NOTHING;
 
 -- Insert default forum categories

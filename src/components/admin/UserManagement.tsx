@@ -58,7 +58,7 @@ export default function UserManagement() {
     try {
       setLoading(true);
       
-      // Get user profiles with their roles (simpler approach)
+      // Get all user profiles with auth user data
       const { data: userProfiles, error: profilesError } = await supabase
         .from('user_profiles')
         .select('*')
@@ -68,31 +68,47 @@ export default function UserManagement() {
         console.error('Error loading user profiles:', profilesError);
         toast({
           title: "Error",
-          description: "Failed to load user profiles",
+          description: `Failed to load users: ${profilesError.message}`,
           variant: "destructive",
         });
         return;
       }
 
       // Get user roles
-      const { data: userRoles } = await supabase
+      const { data: userRoles, error: rolesError } = await supabase
         .from('user_roles')
         .select('*');
 
-      const usersWithData: UserWithProfile[] = (userProfiles || []).map(profile => ({
-        id: profile.user_id,
-        email: profile.display_name || profile.username || 'Unknown User',
-        created_at: profile.created_at,
-        roles: userRoles?.filter(role => role.user_id === profile.user_id).map(role => role.role) || [],
-        profile: profile
-      }));
+      if (rolesError) {
+        console.warn('Could not load user roles:', rolesError);
+      }
+
+      // Get auth users to get email addresses (if available)
+      let authUsersData: any[] = [];
+      try {
+        const { data: authUsers } = await supabase.auth.admin.listUsers();
+        authUsersData = authUsers?.users || [];
+      } catch (authError) {
+        console.warn('Could not load auth users (may require service role):', authError);
+      }
+
+      const usersWithData: UserWithProfile[] = (userProfiles || []).map(profile => {
+        const authUser = authUsersData.find((u: any) => u.id === profile.user_id);
+        return {
+          id: profile.user_id,
+          email: authUser?.email || 'Unknown Email',
+          created_at: profile.created_at,
+          roles: userRoles?.filter(role => role.user_id === profile.user_id).map(role => role.role) || [],
+          profile: profile
+        };
+      });
 
       setUsers(usersWithData);
     } catch (error) {
       console.error('Error loading users:', error);
       toast({
         title: "Error",
-        description: "Failed to load users",
+        description: `Failed to load users: ${error instanceof Error ? error.message : 'Unknown error'}`,
         variant: "destructive",
       });
     } finally {
@@ -259,11 +275,85 @@ export default function UserManagement() {
     return colors[role] || "bg-gray-500";
   };
 
+  const createUserProfilesForExistingUsers = async () => {
+    try {
+      // Get current user to check if we have admin access
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Create a profile for the current user if it doesn't exist
+      const { error: upsertError } = await supabase
+        .from('user_profiles')
+        .upsert({
+          user_id: user.id,
+          username: user.email?.split('@')[0] || 'user',
+          join_date: new Date().toISOString()
+        }, {
+          onConflict: 'user_id'
+        });
+
+      if (upsertError) {
+        console.error('Error creating user profile:', upsertError);
+      } else {
+        console.log('User profile created/updated successfully');
+        
+        // Also give them admin role for testing
+        const { error: roleError } = await supabase
+          .from('user_roles')
+          .upsert({
+            user_id: user.id,
+            role: 'admin'
+          }, {
+            onConflict: 'user_id,role'
+          });
+          
+        if (roleError) {
+          console.error('Error assigning admin role:', roleError);
+        }
+      }
+    } catch (error) {
+      console.error('Error in createUserProfilesForExistingUsers:', error);
+    }
+  };
+
   if (loading) {
     return (
       <Card>
         <CardContent className="py-8">
           <div className="text-center">Loading users...</div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (users.length === 0) {
+    return (
+      <Card>
+        <CardContent className="py-8">
+          <div className="text-center">
+            <h3 className="text-lg font-semibold mb-2">No Users Found</h3>
+            <p className="text-muted-foreground mb-4">
+              No user profiles were found. This could mean:
+            </p>
+            <ul className="text-left text-sm text-muted-foreground max-w-md mx-auto space-y-1">
+              <li>• No users have signed up yet</li>
+              <li>• User profiles haven't been created</li>
+              <li>• You don't have admin permissions</li>
+              <li>• There's a database connectivity issue</li>
+            </ul>
+            <p className="text-xs text-muted-foreground mt-4">
+              Check the browser console for more details.
+            </p>
+            <Button 
+              onClick={async () => {
+                await createUserProfilesForExistingUsers();
+                await loadUsers();
+              }}
+              className="mt-4"
+            >
+              Initialize User Profiles
+            </Button>
+          </div>
         </CardContent>
       </Card>
     );
