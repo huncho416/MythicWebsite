@@ -178,6 +178,6 @@ CREATE TRIGGER update_home_message_comments_updated_at
 
 -- Insert some default messages
 INSERT INTO public.home_messages (title, content, image_url, author_id, is_published, published_at) VALUES
-('Welcome to MythicPvP!', 'Welcome to our amazing Minecraft server! Enjoy your stay and have fun playing with our community. Check out our store for awesome ranks and perks!', '/lovable-uploads/1100660f-b312-47b5-b534-6226348431dd.png', (SELECT id FROM auth.users LIMIT 1), true, now()),
-('Server Updates', 'We have just released a major update with new features, bug fixes, and improvements. Check out the changelog for more details about what''s new!', '/lovable-uploads/1100660f-b312-47b5-b534-6226348431dd.png', (SELECT id FROM auth.users LIMIT 1), true, now())
+('Welcome to MythicPvP!', 'Welcome to our amazing Minecraft server! Enjoy your stay and have fun playing with our community. Check out our store for awesome ranks and perks!', '/banner.jpg', (SELECT id FROM auth.users LIMIT 1), true, now()),
+('Server Updates', 'We have just released a major update with new features, bug fixes, and improvements. Check out the changelog for more details about what''s new!', '/banner.jpg', (SELECT id FROM auth.users LIMIT 1), true, now())
 ON CONFLICT DO NOTHING;

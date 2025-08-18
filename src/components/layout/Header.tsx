@@ -1,5 +1,5 @@
 import { Link, NavLink } from "react-router-dom";
-const logo = "/logo.png";
+const logo = "/logo.jpg";
 import { Button } from "@/components/ui/button";
 import { 
   DropdownMenu, 

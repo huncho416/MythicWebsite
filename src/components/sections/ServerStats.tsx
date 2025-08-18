@@ -86,7 +86,7 @@ export default function ServerStats() {
           {/* Logo */}
           <div className="flex-shrink-0">
             <img 
-              src="/logo.png" 
+              src="/logo.jpg" 
               alt="MythicPvP Dragon Logo" 
               className="h-24 w-24 lg:h-32 lg:w-32 drop-shadow-lg"
             />

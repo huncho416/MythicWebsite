@@ -1,5 +1,5 @@
-const heroBanner = "/banner.png";
-const logo = "/logo.png";
+const heroBanner = "/banner.jpg";
+const logo = "/logo.jpg";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Link } from "react-router-dom";

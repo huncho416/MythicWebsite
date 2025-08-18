@@ -145,7 +145,7 @@ const Index = () => {
               <CardContent className="flex items-center justify-between gap-6 p-6">
                 <div className="flex items-center gap-4">
                   <img
-                    src="/logo.png"
+                    src="/logo.jpg"
                     alt="MythicPvP logo"
                     className="h-14 w-14 rounded-md"
                     loading="lazy"
@@ -168,7 +168,7 @@ const Index = () => {
               <CardContent className="flex items-center justify-between gap-6 p-6">
                 <div className="flex items-center gap-4">
                   <img
-                    src="/logo.png"
+                    src="/logo.jpg"
                     alt="MythicPvP logo"
                     className="h-14 w-14 rounded-md"
                     loading="lazy"
@@ -290,7 +290,7 @@ const Index = () => {
             ) : (
               <>
                 <Card className="overflow-hidden">
-                  <img src="/banner.png" alt="MythicPvP update banner" className="w-full h-56 object-cover" loading="lazy" />
+                  <img src="/banner.jpg" alt="MythicPvP update banner" className="w-full h-56 object-cover" loading="lazy" />
                   <div className="p-6">
                     <h3 className="text-2xl font-semibold text-accent">What is Lorem Ipsum?</h3>
                     <p className="text-muted-foreground mt-2">The standard Lorem Ipsum passage, used since the 1500s... Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
@@ -301,7 +301,7 @@ const Index = () => {
                   </div>
                 </Card>
                 <Card className="overflow-hidden">
-                  <img src="/banner.png" alt="MythicPvP news banner" className="w-full h-56 object-cover" loading="lazy" />
+                  <img src="/banner.jpg" alt="MythicPvP news banner" className="w-full h-56 object-cover" loading="lazy" />
                   <div className="p-6">
                     <h3 className="text-2xl font-semibold text-accent">What is Lorem Ipsum?</h3>
                     <p className="text-muted-foreground mt-2">The standard Lorem Ipsum passage, used since the 1500s... Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
