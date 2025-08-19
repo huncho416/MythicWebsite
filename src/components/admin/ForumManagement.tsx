@@ -70,6 +70,9 @@ export default function ForumManagement() {
 
   const { toast } = useToast();
 
+  // Debug logging
+  console.log('🎯 ForumManagement render - showEditCategoryDialog:', showEditCategoryDialog, 'editingCategoryId:', editingCategoryId);
+
   useEffect(() => {
     loadForumData();
   }, []);
@@ -135,6 +138,8 @@ export default function ForumManagement() {
 
   const openEditCategory = (category: Tables<'forum_categories'>) => {
     try {
+      console.log('🔧 Opening edit dialog for category:', category);
+      
       const formData = {
         name: category.name,
         description: category.description || "",
@@ -145,11 +150,21 @@ export default function ForumManagement() {
         min_role_to_view: category.min_role_to_view || "",
         min_role_to_post: category.min_role_to_post || ""
       };
+      
+      console.log('📝 Setting form data:', formData);
       setCategoryForm(formData);
       setEditingCategoryId(category.id);
+      
+      console.log('🚪 Opening dialog, setting showEditCategoryDialog to true');
       setShowEditCategoryDialog(true);
+      
+      // Double check the state after setting
+      setTimeout(() => {
+        console.log('⏰ Dialog state after timeout:', { showEditCategoryDialog, editingCategoryId: category.id });
+      }, 100);
+      
     } catch (error) {
-      console.error('Error opening edit dialog:', error);
+      console.error('❌ Error opening edit dialog:', error);
       toast({
         title: "Error",
         description: "Failed to open edit dialog",
@@ -734,7 +749,10 @@ export default function ForumManagement() {
       </Card>
 
       {/* Edit Category Dialog */}
-      <Dialog open={showEditCategoryDialog} onOpenChange={setShowEditCategoryDialog}>
+      <Dialog open={showEditCategoryDialog} onOpenChange={(open) => {
+        console.log('🔄 Dialog onOpenChange called with:', open);
+        setShowEditCategoryDialog(open);
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit Forum Category</DialogTitle>
