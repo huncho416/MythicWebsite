@@ -81,18 +81,25 @@ export default function ForumManagement() {
     try {
       setLoading(true);
       
+      console.log('🔄 Loading forum data...');
+      
       const [categoriesRes, threadsRes, postsRes] = await Promise.all([
         supabase.from('forum_categories').select('*').order('sort_order'),
         supabase.from('forum_threads').select('*').order('created_at', { ascending: false }).limit(50),
         supabase.from('forum_posts').select('*').order('created_at', { ascending: false }).limit(50)
       ]);
 
-      if (categoriesRes.data) setCategories(categoriesRes.data);
+      console.log('📊 Database responses:', { categoriesRes, threadsRes, postsRes });
+
+      if (categoriesRes.data) {
+        console.log('✅ Loaded categories:', categoriesRes.data);
+        setCategories(categoriesRes.data);
+      }
       if (threadsRes.data) setThreads(threadsRes.data);
       if (postsRes.data) setReplies(postsRes.data);
       
     } catch (error) {
-      console.error('Error loading forum data:', error);
+      console.error('❌ Error loading forum data:', error);
       toast({
         title: "Error", 
         description: "Failed to load forum data",
@@ -140,10 +147,21 @@ export default function ForumManagement() {
     try {
       console.log('🔧 Opening edit dialog for category:', category);
       
+      // Ensure we have valid data before proceeding
+      if (!category || !category.id) {
+        console.error('❌ Invalid category data:', category);
+        toast({
+          title: "Error",
+          description: "Invalid category data",
+          variant: "destructive",
+        });
+        return;
+      }
+      
       const formData = {
-        name: category.name,
+        name: category.name || "",
         description: category.description || "",
-        slug: category.slug,
+        slug: category.slug || "",
         icon: category.icon || "",
         color: category.color || "#6366f1",
         category_type: category.category_type as any,
@@ -152,16 +170,27 @@ export default function ForumManagement() {
       };
       
       console.log('📝 Setting form data:', formData);
+      
+      // Set form data first
       setCategoryForm(formData);
+      
+      // Then set the editing ID
       setEditingCategoryId(category.id);
       
-      console.log('🚪 Opening dialog, setting showEditCategoryDialog to true');
-      setShowEditCategoryDialog(true);
-      
-      // Double check the state after setting
+      // Use setTimeout to ensure state updates are processed
       setTimeout(() => {
-        console.log('⏰ Dialog state after timeout:', { showEditCategoryDialog, editingCategoryId: category.id });
-      }, 100);
+        console.log('🚪 Opening dialog after state update');
+        setShowEditCategoryDialog(true);
+        
+        // Verify state after another timeout
+        setTimeout(() => {
+          console.log('⏰ Dialog state verification:', { 
+            showEditCategoryDialog: true, // This should be true now
+            editingCategoryId: category.id,
+            formName: formData.name 
+          });
+        }, 50);
+      }, 10);
       
     } catch (error) {
       console.error('❌ Error opening edit dialog:', error);
@@ -174,28 +203,68 @@ export default function ForumManagement() {
   };
 
   const updateCategory = async () => {
-    if (!editingCategoryId) return;
+    if (!editingCategoryId) {
+      console.error('❌ No category ID to update');
+      toast({
+        title: "Error",
+        description: "No category selected for update",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate form data
+    if (!categoryForm.name.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Category name is required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!categoryForm.slug.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Category slug is required",
+        variant: "destructive",
+      });
+      return;
+    }
 
     try {
+      console.log('💾 Updating category with form data:', categoryForm);
+      
       const updateData = {
-        name: categoryForm.name,
-        description: categoryForm.description,
-        slug: categoryForm.slug,
-        icon: categoryForm.icon,
+        name: categoryForm.name.trim(),
+        description: categoryForm.description.trim(),
+        slug: categoryForm.slug.trim(),
+        icon: categoryForm.icon.trim(),
         color: categoryForm.color,
-        category_type: categoryForm.category_type as any,
+        category_type: categoryForm.category_type,
         min_role_to_view: categoryForm.min_role_to_view ? categoryForm.min_role_to_view as any : null,
         min_role_to_post: categoryForm.min_role_to_post ? categoryForm.min_role_to_post as any : null
       };
+
+      console.log('📡 Sending update data to Supabase:', updateData);
 
       const { error } = await supabase
         .from('forum_categories')
         .update(updateData)
         .eq('id', editingCategoryId);
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Supabase update error:', error);
+        throw error;
+      }
 
-      toast({ title: "Success", description: "Forum category updated successfully" });
+      console.log('✅ Category updated successfully');
+      toast({ 
+        title: "Success", 
+        description: "Forum category updated successfully" 
+      });
+      
+      // Reset form and close dialog
       setShowEditCategoryDialog(false);
       setEditingCategoryId(null);
       setCategoryForm({
@@ -208,12 +277,14 @@ export default function ForumManagement() {
         min_role_to_view: "",
         min_role_to_post: ""
       });
+      
+      // Reload data to show changes
       loadForumData();
     } catch (error) {
-      console.error('Error updating category:', error);
+      console.error('❌ Error updating category:', error);
       toast({
         title: "Error",
-        description: "Failed to update category",
+        description: error instanceof Error ? error.message : "Failed to update category",
         variant: "destructive",
       });
     }
@@ -753,13 +824,18 @@ export default function ForumManagement() {
         console.log('🔄 Dialog onOpenChange called with:', open);
         setShowEditCategoryDialog(open);
       }}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Edit Forum Category</DialogTitle>
             <DialogDescription>
               Update the forum category details
             </DialogDescription>
           </DialogHeader>
+          {editingCategoryId && (
+            <div className="text-sm text-muted-foreground mb-4">
+              Editing Category ID: {editingCategoryId}
+            </div>
+          )}
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -767,7 +843,11 @@ export default function ForumManagement() {
                 <Input
                   id="editCategoryName"
                   value={categoryForm.name}
-                  onChange={(e) => setCategoryForm({...categoryForm, name: e.target.value})}
+                  onChange={(e) => {
+                    console.log('📝 Name changed to:', e.target.value);
+                    setCategoryForm({...categoryForm, name: e.target.value});
+                  }}
+                  placeholder="Category name"
                 />
               </div>
               <div>
@@ -776,6 +856,7 @@ export default function ForumManagement() {
                   id="editCategorySlug"
                   value={categoryForm.slug}
                   onChange={(e) => setCategoryForm({...categoryForm, slug: e.target.value})}
+                  placeholder="category-slug"
                 />
               </div>
             </div>
@@ -852,11 +933,25 @@ export default function ForumManagement() {
               />
             </div>
           </div>
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setShowEditCategoryDialog(false)}>
+          <div className="flex justify-end gap-2 mt-6">
+            <Button variant="outline" onClick={() => {
+              console.log('❌ Cancel button clicked, closing dialog');
+              setShowEditCategoryDialog(false);
+              setEditingCategoryId(null);
+              setCategoryForm({
+                name: "",
+                description: "",
+                slug: "",
+                icon: "",
+                color: "#6366f1",
+                category_type: "general",
+                min_role_to_view: "",
+                min_role_to_post: ""
+              });
+            }}>
               Cancel
             </Button>
-            <Button onClick={updateCategory}>
+            <Button onClick={updateCategory} disabled={!editingCategoryId}>
               Update Category
             </Button>
           </div>
