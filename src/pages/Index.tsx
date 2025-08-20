@@ -149,23 +149,33 @@ const Index = () => {
 
   const loadComments = async (messageId: string) => {
     try {
-      const { data, error } = await supabase
+      const { data: comments, error } = await supabase
         .from('home_message_comments')
-        .select(`
-          *,
-          user_profiles!home_message_comments_author_id_fkey (
-            display_name,
-            username,
-            avatar_url
-          )
-        `)
+        .select('*')
         .eq('message_id', messageId)
         .eq('is_approved', true)
         .order('created_at', { ascending: true });
 
       if (error) throw error;
-      
-      setComments(prev => ({ ...prev, [messageId]: data || [] }));
+
+      // Get user profiles for comments
+      if (comments && comments.length > 0) {
+        const userIds = comments.map(comment => comment.author_id);
+        const { data: profiles } = await supabase
+          .from('user_profiles')
+          .select('user_id, display_name, username, avatar_url')
+          .in('user_id', userIds);
+
+        // Combine comments with profile data
+        const commentsWithProfiles = comments.map(comment => ({
+          ...comment,
+          user_profiles: profiles?.find(p => p.user_id === comment.author_id)
+        }));
+
+        setComments(prev => ({ ...prev, [messageId]: commentsWithProfiles }));
+      } else {
+        setComments(prev => ({ ...prev, [messageId]: [] }));
+      }
     } catch (error) {
       console.error('Error loading comments:', error);
     }
@@ -214,25 +224,20 @@ const Index = () => {
     try {
       const { data, error } = await supabase
         .from('orders')
-        .select(`
-          user_id,
-          final_amount,
-          user_profiles!orders_user_id_fkey(username)
-        `)
+        .select('user_id, final_amount')
         .eq('status', 'completed')
         .order('final_amount', { ascending: false })
-        .limit(10);
+        .limit(50); // Get more to account for grouping
 
       if (error) throw error;
 
       // Group by user and sum their total spending
       const userTotals = (data || []).reduce((acc: any, order: any) => {
         const userId = order.user_id;
-        const username = order.user_profiles?.username || 'Unknown User';
         
         if (!acc[userId]) {
           acc[userId] = {
-            username,
+            userId,
             total: 0
           };
         }
@@ -245,7 +250,27 @@ const Index = () => {
         .sort((a: any, b: any) => b.total - a.total)
         .slice(0, 5);
 
-      setTopDonors(topDonorsList);
+      // Get usernames for top donors
+      const userIds = topDonorsList.map((donor: any) => donor.userId);
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('user_profiles')
+          .select('user_id, username')
+          .in('user_id', userIds);
+
+        // Add usernames to the donor data
+        const topDonorsWithNames = topDonorsList.map((donor: any) => {
+          const profile = profiles?.find(p => p.user_id === donor.userId);
+          return {
+            username: profile?.username || 'Unknown User',
+            total: donor.total
+          };
+        });
+
+        setTopDonors(topDonorsWithNames);
+      } else {
+        setTopDonors([]);
+      }
     } catch (error) {
       console.error('Error loading top donors:', error);
     }
@@ -253,28 +278,49 @@ const Index = () => {
 
   const loadRecentPurchases = async () => {
     try {
-      const { data, error } = await supabase
+      // First get recent orders
+      const { data: orders, error: ordersError } = await supabase
         .from('orders')
-        .select(`
-          id,
-          created_at,
-          user_profiles!orders_user_id_fkey(username),
-          order_items(
-            store_packages(name)
-          )
-        `)
+        .select('id, created_at, user_id')
         .eq('status', 'completed')
         .order('created_at', { ascending: false })
         .limit(10);
 
-      if (error) throw error;
+      if (ordersError) throw ordersError;
+
+      if (!orders || orders.length === 0) {
+        setRecentPurchases([]);
+        return;
+      }
+
+      // Get user profiles for these orders
+      const userIds = orders.map(order => order.user_id);
+      const { data: profiles } = await supabase
+        .from('user_profiles')
+        .select('user_id, username')
+        .in('user_id', userIds);
+
+      // Get order items and packages for these orders
+      const orderIds = orders.map(order => order.id);
+      const { data: orderItems } = await supabase
+        .from('order_items')
+        .select(`
+          order_id,
+          store_packages(name)
+        `)
+        .in('order_id', orderIds);
 
       // Format the recent purchases
-      const purchases = (data || []).map((order: any) => ({
-        username: order.user_profiles?.username || 'Unknown User',
-        package: order.order_items?.[0]?.store_packages?.name || 'Unknown Package',
-        date: order.created_at
-      }));
+      const purchases = orders.map((order: any) => {
+        const profile = profiles?.find(p => p.user_id === order.user_id);
+        const orderItem = orderItems?.find(item => item.order_id === order.id);
+        
+        return {
+          username: profile?.username || 'Unknown User',
+          package: orderItem?.store_packages?.name || 'Unknown Package',
+          date: order.created_at
+        };
+      });
 
       setRecentPurchases(purchases.slice(0, 5));
     } catch (error) {
@@ -549,7 +595,6 @@ const Index = () => {
               src="https://discord.com/widget?id=1400580872800964819&theme=dark" 
               width="350" 
               height="500" 
-              allowTransparency={true} 
               frameBorder="0" 
               sandbox="allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts"
               title="Discord Server Widget"

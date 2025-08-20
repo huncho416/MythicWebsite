@@ -115,17 +115,32 @@ export default function SupportManagement() {
 
   const loadTicketMessages = async (ticketId: string) => {
     try {
-      const { data, error } = await supabase
+      const { data: messages, error } = await supabase
         .from('support_ticket_messages')
-        .select(`
-          *,
-          author_profile:user_profiles!author_id(username)
-        `)
+        .select('*')
         .eq('ticket_id', ticketId)
         .order('created_at', { ascending: true });
 
       if (error) throw error;
-      setTicketMessages(data || []);
+
+      // Get user profiles for messages
+      if (messages && messages.length > 0) {
+        const authorIds = messages.map(msg => msg.author_id);
+        const { data: profiles } = await supabase
+          .from('user_profiles')
+          .select('user_id, username')
+          .in('user_id', authorIds);
+
+        // Combine messages with profile data
+        const messagesWithProfiles = messages.map(message => ({
+          ...message,
+          author_profile: profiles?.find(p => p.user_id === message.author_id)
+        }));
+
+        setTicketMessages(messagesWithProfiles);
+      } else {
+        setTicketMessages([]);
+      }
       
     } catch (error) {
       console.error('Error loading ticket messages:', error);

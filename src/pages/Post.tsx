@@ -9,6 +9,23 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ArrowLeft, Calendar, Eye, MessageSquare, User } from "lucide-react";
 import { Tables } from "@/integrations/supabase/types";
 
+// Role color mapping based on the roles definition
+const getRoleColor = (role: string) => {
+  const roleColors: Record<string, string> = {
+    'owner': '#ff0000',
+    'system_admin': '#ff6600',
+    'senior_admin': '#ffaa00',
+    'admin': '#ffdd00',
+    'senior_moderator': '#00aa00',
+    'moderator': '#00dd00',
+    'helper': '#0066ff',
+    'developer': '#9900ff',
+    'vip': '#ffff00',
+    'member': '#6b7280'
+  };
+  return roleColors[role] || '#6b7280';
+};
+
 export default function Post() {
   const { id, threadId } = useParams<{ id?: string; threadId?: string }>();
   const location = useLocation();
@@ -257,10 +274,8 @@ export default function Post() {
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+      month: 'short',
+      day: 'numeric'
     });
   };
 
@@ -326,7 +341,14 @@ export default function Post() {
                     {postAuthor.roles && postAuthor.roles.length > 0 && (
                       <div className="space-y-1 mb-4">
                         {postAuthor.roles.map((role: string) => (
-                          <Badge key={role} variant="outline" className="text-xs">
+                          <Badge 
+                            key={role} 
+                            className="text-xs border-none text-white font-semibold shadow-sm"
+                            style={{ 
+                              backgroundColor: getRoleColor(role),
+                              color: role === 'vip' ? '#000' : '#fff'
+                            }}
+                          >
                             {role.replace('_', ' ').toUpperCase()}
                           </Badge>
                         ))}
@@ -337,16 +359,6 @@ export default function Post() {
                       {postAuthor.minecraft_username && (
                         <div>
                           <strong>Minecraft:</strong> {postAuthor.minecraft_username}
-                        </div>
-                      )}
-                      {postAuthor.gender && (
-                        <div>
-                          <strong>Gender:</strong> {postAuthor.gender}
-                        </div>
-                      )}
-                      {postAuthor.birthday && (
-                        <div>
-                          <strong>Age:</strong> {new Date().getFullYear() - new Date(postAuthor.birthday).getFullYear()}
                         </div>
                       )}
                       {postAuthor.location && (
@@ -459,63 +471,94 @@ export default function Post() {
             ) : (
               <div className="space-y-6">
                 {comments.length > 0 ? (
-                  comments.map((comment) => (
-                    <div key={comment.id} className="border rounded-lg p-4">
+                  comments.map((comment, index) => (
+                    <Card key={comment.id} className="overflow-hidden">
                       {isThread ? (
-                        // Thread reply layout with user info
-                        <div className="flex gap-4">
-                          <div className="w-48 bg-secondary/10 p-4 rounded-lg">
+                        // XenForo-style thread reply layout
+                        <div className="flex">
+                          {/* User Info Sidebar */}
+                          <div className="w-48 bg-secondary/20 p-4 border-r flex-shrink-0">
                             <div className="text-center">
-                              <Avatar className="h-12 w-12 mx-auto mb-2">
+                              <Avatar className="h-16 w-16 mx-auto mb-3">
                                 <AvatarImage src={comment.user_profiles?.avatar_url} />
-                                <AvatarFallback>
+                                <AvatarFallback className="text-lg">
                                   {comment.user_profiles?.display_name?.charAt(0) || 
                                    comment.user_profiles?.username?.charAt(0) || 'U'}
                                 </AvatarFallback>
                               </Avatar>
                               
-                              <h4 className="font-semibold text-sm mb-1">
+                              <h4 className="font-semibold text-sm mb-2 text-primary">
                                 {comment.user_profiles?.display_name || 
                                  comment.user_profiles?.username || 'User'}
                               </h4>
                               
                               {comment.user_profiles?.roles && comment.user_profiles.roles.length > 0 && (
-                                <div className="mb-2">
+                                <div className="mb-3 space-y-1">
                                   {comment.user_profiles.roles.map((role: string) => (
-                                    <Badge key={role} variant="outline" className="text-xs mb-1">
+                                    <Badge 
+                                      key={role} 
+                                      className="text-xs block w-full border-none text-white font-semibold shadow-sm" 
+                                      style={{ 
+                                        backgroundColor: getRoleColor(role),
+                                        color: role === 'vip' ? '#000' : '#fff'
+                                      }}
+                                    >
                                       {role.replace('_', ' ').toUpperCase()}
                                     </Badge>
                                   ))}
                                 </div>
                               )}
                               
-                              <div className="text-xs text-muted-foreground space-y-1">
+                              <div className="text-xs text-muted-foreground space-y-1 border-t pt-2">
                                 {comment.user_profiles?.minecraft_username && (
-                                  <div>MC: {comment.user_profiles.minecraft_username}</div>
+                                  <div className="truncate">
+                                    <span className="font-medium">MC:</span> {comment.user_profiles.minecraft_username}
+                                  </div>
                                 )}
-                                {comment.user_profiles?.gender && (
-                                  <div>{comment.user_profiles.gender}</div>
+                                <div>
+                                  <span className="font-medium">Joined:</span> {comment.user_profiles?.join_date ? 
+                                    new Date(comment.user_profiles.join_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 
+                                    'Unknown'}
+                                </div>
+                                {comment.user_profiles?.last_seen && (
+                                  <div>
+                                    <span className="font-medium">Last seen:</span> {new Date(comment.user_profiles.last_seen).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                                  </div>
                                 )}
-                                {comment.user_profiles?.birthday && (
-                                  <div>Age: {new Date().getFullYear() - new Date(comment.user_profiles.birthday).getFullYear()}</div>
-                                )}
-                                <div>Joined: {comment.user_profiles?.join_date ? 
-                                  new Date(comment.user_profiles.join_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short' }) : 
-                                  'Unknown'}</div>
                               </div>
                             </div>
                           </div>
                           
-                          <div className="flex-1">
-                            <div className="flex justify-between items-start mb-2">
-                              <span className="text-xs text-muted-foreground">
-                                {formatDate(comment.created_at)}
-                              </span>
+                          {/* Post Content */}
+                          <div className="flex-1 p-4">
+                            <div className="flex justify-between items-center mb-3 pb-2 border-b">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium">#{index + 1}</span>
+                                <span className="text-xs text-muted-foreground">
+                                  {formatDate(comment.created_at)}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {/* Post actions would go here */}
+                                <Button size="sm" variant="ghost" className="h-6 px-2 text-xs">
+                                  Quote
+                                </Button>
+                                <Button size="sm" variant="ghost" className="h-6 px-2 text-xs">
+                                  Like
+                                </Button>
+                              </div>
                             </div>
+                            
                             <div 
-                              className="text-sm"
+                              className="prose prose-sm max-w-none dark:prose-invert"
                               dangerouslySetInnerHTML={{ __html: comment.content }}
                             />
+                            
+                            {comment.is_edited && (
+                              <div className="text-xs text-muted-foreground mt-3 pt-2 border-t">
+                                Last edited: {formatDate(comment.edited_at || comment.updated_at)}
+                              </div>
+                            )}
                           </div>
                         </div>
                       ) : (
@@ -545,7 +588,7 @@ export default function Post() {
                           </div>
                         </div>
                       )}
-                    </div>
+                    </Card>
                   ))
                 ) : (
                   <p className="text-muted-foreground text-center py-8">

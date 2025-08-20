@@ -7,6 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import VoteComponent from "@/components/ui/vote-component";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -219,9 +221,7 @@ export default function ForumCategory() {
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+      day: 'numeric'
     });
   };
 
@@ -364,92 +364,129 @@ export default function ForumCategory() {
             </CardContent>
           </Card>
         ) : (
-          threads.map((thread) => (
-            <Card 
-              key={thread.id} 
-              className="bg-secondary/40 hover:bg-secondary/60 transition-colors cursor-pointer"
-              onClick={() => navigate(`/forums/thread/${thread.id}`)}
-            >
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
+          <div className="space-y-2">
+            {threads.map((thread) => (
+              <Card 
+                key={thread.id} 
+                className="bg-secondary/40 hover:bg-secondary/60 transition-colors"
+              >
+                <div 
+                  className="cursor-pointer p-4"
+                  onClick={() => navigate(`/forums/thread/${thread.id}`)}
+                >
+                  <div className="flex items-start gap-4">
+                    {/* Thread Status Icons */}
+                    <div className="flex-shrink-0 flex flex-col items-center gap-1 mt-1">
                       {thread.is_pinned && (
-                        <Pin className="h-4 w-4 text-accent" />
+                        <Pin className="h-4 w-4 text-yellow-500" />
                       )}
-                      <h3 className="text-lg font-semibold hover:text-accent transition-colors">
-                        {thread.title}
-                      </h3>
-                      {thread.is_locked && (
-                        <Lock className="h-4 w-4 text-muted-foreground" />
+                      {thread.is_locked ? (
+                        <Lock className="h-4 w-4 text-red-500" />
+                      ) : (
+                        <MessageSquare className="h-4 w-4 text-primary" />
                       )}
                     </div>
                     
-                    <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
-                      {thread.content}
-                    </p>
-                    
-                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <User className="h-3 w-3" />
-                        {thread.author?.display_name || thread.author?.username || 'Unknown'}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Calendar className="h-3 w-3" />
-                        {formatDate(thread.created_at)}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Eye className="h-3 w-3" />
-                        {thread.view_count} views
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <MessageSquare className="h-3 w-3" />
-                        {thread.reply_count} replies
-                      </span>
+                    {/* Thread Content */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-lg font-semibold hover:text-accent transition-colors mb-1">
+                            {thread.title}
+                          </h3>
+                          
+                          <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
+                            {thread.content}
+                          </p>
+                          
+                          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                            <div className="flex items-center gap-1">
+                              {thread.author?.avatar_url ? (
+                                <Avatar className="h-4 w-4">
+                                  <AvatarImage src={thread.author.avatar_url} />
+                                  <AvatarFallback>
+                                    {(thread.author.display_name || thread.author.username || 'U')[0]}
+                                  </AvatarFallback>
+                                </Avatar>
+                              ) : (
+                                <User className="h-3 w-3" />
+                              )}
+                              <span className="hover:text-primary hover:underline cursor-pointer">
+                                {thread.author?.display_name || thread.author?.username || 'Unknown'}
+                              </span>
+                            </div>
+                            <span className="flex items-center gap-1">
+                              <Calendar className="h-3 w-3" />
+                              {formatDate(thread.created_at)}
+                            </span>
+                          </div>
+                        </div>
+                        
+                        {/* Thread Stats */}
+                        <div className="flex-shrink-0 text-center min-w-[80px] ml-4">
+                          <div className="text-lg font-semibold text-primary">
+                            {thread.reply_count}
+                          </div>
+                          <div className="text-xs text-muted-foreground">replies</div>
+                          <div className="text-sm text-muted-foreground mt-1">
+                            {thread.view_count} views
+                          </div>
+                        </div>
+                        
+                        {/* Last Activity */}
+                        <div className="flex-shrink-0 text-right min-w-[150px] ml-4">
+                          {thread.last_reply_at ? (
+                            <div className="text-sm">
+                              <div className="text-xs text-muted-foreground">
+                                {formatTimeAgo(thread.last_reply_at)}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                Last reply
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-xs text-muted-foreground">
+                              No replies yet
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* Admin Controls */}
+                        {isAdmin && (
+                          <div className="flex items-center gap-1 ml-4">
+                            <Button
+                              size="sm"
+                              variant={thread.is_pinned ? "default" : "outline"}
+                              onClick={(e) => toggleThreadPin(thread.id, thread.is_pinned, e)}
+                              className="h-8 px-2"
+                            >
+                              <Pin className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant={thread.is_locked ? "destructive" : "outline"}
+                              onClick={(e) => toggleThreadLock(thread.id, thread.is_locked, e)}
+                              className="h-8 px-2"
+                            >
+                              <Lock className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={(e) => handleEditThread(thread, e)}
+                              className="h-8 px-2"
+                            >
+                              <Settings className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-2">
-                    {isAdmin && (
-                      <div className="flex items-center gap-1">
-                        <Button
-                          size="sm"
-                          variant={thread.is_pinned ? "default" : "outline"}
-                          onClick={(e) => toggleThreadPin(thread.id, thread.is_pinned, e)}
-                          className="h-8 px-2"
-                        >
-                          <Pin className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant={thread.is_locked ? "destructive" : "outline"}
-                          onClick={(e) => toggleThreadLock(thread.id, thread.is_locked, e)}
-                          className="h-8 px-2"
-                        >
-                          <Lock className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={(e) => handleEditThread(thread, e)}
-                          className="h-8 px-2"
-                        >
-                          <Settings className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    )}
-                    
-                    {thread.last_reply_at && (
-                      <div className="text-right text-xs text-muted-foreground ml-4">
-                        <div>Last reply</div>
-                        <div>{formatTimeAgo(thread.last_reply_at)}</div>
-                      </div>
-                    )}
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-          ))
+              </Card>
+            ))}
+          </div>
         )}
       </div>
 

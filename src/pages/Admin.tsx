@@ -83,23 +83,35 @@ export default function Admin() {
 
   const loadUsers = async () => {
     try {
-      // Get all users from auth and their roles
-      const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers();
+      // Get users from user_profiles
+      const { data: profileUsers, error: profileError } = await supabase
+        .from('user_profiles')
+        .select(`
+          user_id,
+          username,
+          display_name,
+          created_at
+        `)
+        .order('created_at', { ascending: false });
       
-      if (authError) {
-        throw authError;
+      if (profileError) {
+        throw profileError;
       }
 
-      // Get all user roles
-      const { data: userRoles } = await supabase
+      // Get all user roles separately
+      const { data: userRoles, error: rolesError } = await supabase
         .from('user_roles')
-        .select('*');
+        .select('user_id, role');
 
-      const usersWithRoles: UserWithRoles[] = authUsers.users.map(user => ({
-        id: user.id,
-        email: user.email || '',
-        created_at: user.created_at,
-        roles: userRoles?.filter(role => role.user_id === user.id).map(role => role.role) || []
+      if (rolesError) {
+        throw rolesError;
+      }
+
+      const usersWithRoles: UserWithRoles[] = (profileUsers || []).map(profile => ({
+        id: profile.user_id,
+        email: profile.username || profile.display_name || 'Unknown',
+        created_at: profile.created_at,
+        roles: userRoles?.filter(ur => ur.user_id === profile.user_id).map(ur => ur.role) || []
       }));
 
       setUsers(usersWithRoles);

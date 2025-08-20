@@ -64,8 +64,8 @@ export default function ForumManagement() {
     icon: "",
     color: "#6366f1",
     category_type: "general" as const,
-    min_role_to_view: "",
-    min_role_to_post: ""
+    min_role_to_view: "none",
+    min_role_to_post: "none"
   });
 
   const { toast } = useToast();
@@ -112,8 +112,8 @@ export default function ForumManagement() {
         color: categoryForm.color,
         category_type: categoryForm.category_type as any,
         sort_order: categories.length,
-        min_role_to_view: categoryForm.min_role_to_view ? categoryForm.min_role_to_view as any : null,
-        min_role_to_post: categoryForm.min_role_to_post ? categoryForm.min_role_to_post as any : null
+        min_role_to_view: categoryForm.min_role_to_view === "none" ? null : categoryForm.min_role_to_view as any,
+        min_role_to_post: categoryForm.min_role_to_post === "none" ? null : categoryForm.min_role_to_post as any
       };
 
       const { error } = await supabase
@@ -137,11 +137,8 @@ export default function ForumManagement() {
 
   const openEditCategory = (category: Tables<'forum_categories'>) => {
     try {
-      console.log('🚀 EDIT BUTTON CLICKED - Category:', category);
-      
       // Ensure we have valid data before proceeding
       if (!category || !category.id) {
-        console.error('❌ Invalid category data:', category);
         toast({
           title: "Error",
           description: "Invalid category data",
@@ -150,39 +147,29 @@ export default function ForumManagement() {
         return;
       }
       
+      // Ensure all values are properly handled (null -> "none")
       const formData = {
         name: category.name || "",
         description: category.description || "",
         slug: category.slug || "",
         icon: category.icon || "",
         color: category.color || "#6366f1",
-        category_type: category.category_type as any,
-        min_role_to_view: category.min_role_to_view || "",
-        min_role_to_post: category.min_role_to_post || ""
+        category_type: (category.category_type || "general") as any,
+        min_role_to_view: (category.min_role_to_view || "none") as string,
+        min_role_to_post: (category.min_role_to_post || "none") as string
       };
-      
-      console.log('📝 Form data prepared:', formData);
-      console.log('🔧 Current showEditCategoryDialog state:', showEditCategoryDialog);
       
       // Set form data first
       setCategoryForm(formData);
-      console.log('✅ Form data set');
       
       // Then set the editing ID
       setEditingCategoryId(category.id);
-      console.log('✅ Editing ID set:', category.id);
       
-      // Open the dialog immediately (remove timeout)
+      // Open the dialog
       setShowEditCategoryDialog(true);
-      console.log('✅ Dialog state set to true');
-      
-      // Log after a brief delay to see if state updated
-      setTimeout(() => {
-        console.log('⏰ After timeout - showEditCategoryDialog should be true now');
-      }, 100);
       
     } catch (error) {
-      console.error('❌ Error opening edit dialog:', error);
+      console.error('Error in openEditCategory:', error);
       toast({
         title: "Error",
         description: "Failed to open edit dialog",
@@ -228,8 +215,8 @@ export default function ForumManagement() {
         icon: categoryForm.icon.trim(),
         color: categoryForm.color,
         category_type: categoryForm.category_type,
-        min_role_to_view: categoryForm.min_role_to_view ? categoryForm.min_role_to_view as any : null,
-        min_role_to_post: categoryForm.min_role_to_post ? categoryForm.min_role_to_post as any : null
+        min_role_to_view: categoryForm.min_role_to_view === "none" ? null : categoryForm.min_role_to_view as any,
+        min_role_to_post: categoryForm.min_role_to_post === "none" ? null : categoryForm.min_role_to_post as any
       };
 
       const { error } = await supabase
@@ -256,8 +243,8 @@ export default function ForumManagement() {
         icon: "",
         color: "#6366f1",
         category_type: "general",
-        min_role_to_view: "",
-        min_role_to_post: ""
+        min_role_to_view: "none",
+        min_role_to_post: "none"
       });
       
       // Reload data to show changes
@@ -432,13 +419,10 @@ export default function ForumManagement() {
       icon: "",
       color: "#6366f1",
       category_type: "general",
-      min_role_to_view: "",
-      min_role_to_post: ""
+      min_role_to_view: "none",
+      min_role_to_post: "none"
     });
   };
-
-  // Debug logging
-  console.log('🖼️ RENDERING EDIT DIALOG - showEditCategoryDialog:', showEditCategoryDialog, 'editingCategoryId:', editingCategoryId);
 
   if (loading) {
     return (
@@ -473,34 +457,13 @@ export default function ForumManagement() {
             <TabsContent value="categories" className="space-y-4">
               <div className="flex justify-between items-center">
                 <h3 className="text-lg font-medium">Forum Categories</h3>
-                <div className="flex gap-2">
-                  <Button 
-                    variant="secondary" 
-                    onClick={() => {
-                      console.log('🧪 TEST BUTTON CLICKED');
-                      setShowEditCategoryDialog(true);
-                      setEditingCategoryId('test-id');
-                      setCategoryForm({
-                        name: "Test Category",
-                        description: "Test Description",
-                        slug: "test-slug",
-                        icon: "📝",
-                        color: "#6366f1",
-                        category_type: "general",
-                        min_role_to_view: "",
-                        min_role_to_post: ""
-                      });
-                    }}
-                  >
-                    🧪 TEST EDIT DIALOG
-                  </Button>
-                  <Dialog open={showCategoryDialog} onOpenChange={setShowCategoryDialog}>
-                    <DialogTrigger asChild>
-                      <Button>
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add Category
-                      </Button>
-                    </DialogTrigger>
+                <Dialog open={showCategoryDialog} onOpenChange={setShowCategoryDialog}>
+                  <DialogTrigger asChild>
+                    <Button>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Category
+                    </Button>
+                  </DialogTrigger>
                   <DialogContent>
                     <DialogHeader>
                       <DialogTitle>Create Forum Category</DialogTitle>
@@ -569,7 +532,7 @@ export default function ForumManagement() {
                               <SelectValue placeholder="No restriction" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="">No restriction</SelectItem>
+                              <SelectItem value="none">No restriction</SelectItem>
                               <SelectItem value="helper">Helper+</SelectItem>
                               <SelectItem value="moderator">Moderator+</SelectItem>
                               <SelectItem value="admin">Admin+</SelectItem>
@@ -583,7 +546,7 @@ export default function ForumManagement() {
                               <SelectValue placeholder="No restriction" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="">No restriction</SelectItem>
+                              <SelectItem value="none">No restriction</SelectItem>
                               <SelectItem value="helper">Helper+</SelectItem>
                               <SelectItem value="moderator">Moderator+</SelectItem>
                               <SelectItem value="admin">Admin+</SelectItem>
@@ -610,7 +573,6 @@ export default function ForumManagement() {
                     </div>
                   </DialogContent>
                 </Dialog>
-                </div>
               </div>
 
               <div className="border rounded-lg">
@@ -670,12 +632,7 @@ export default function ForumManagement() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => {
-                                console.log('🚀 EDIT BUTTON CLICKED FOR:', category.name);
-                                // Simple test - just alert first
-                                alert('Edit button clicked for: ' + category.name);
-                                openEditCategory(category);
-                              }}
+                              onClick={() => openEditCategory(category)}
                             >
                               <Edit2 className="h-4 w-4" />
                             </Button>
@@ -832,138 +789,118 @@ export default function ForumManagement() {
       </Card>
 
       {/* Edit Category Dialog */}
-      <Dialog 
-        open={showEditCategoryDialog} 
-        onOpenChange={(open) => {
-          console.log('🔄 Dialog onOpenChange called with:', open);
-          setShowEditCategoryDialog(open);
-        }}
-      >
+      <Dialog open={showEditCategoryDialog} onOpenChange={setShowEditCategoryDialog}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Edit Forum Category</DialogTitle>
             <DialogDescription>
-              Update the forum category details
+              Update the forum category settings and permissions
             </DialogDescription>
           </DialogHeader>
-          {editingCategoryId && (
-            <div className="bg-blue-100 p-2 rounded mb-4 text-sm">
-              <strong>DEBUG:</strong> Editing Category ID: {editingCategoryId}
-              <br />
-              Form Name: {categoryForm.name}
-              <br />
-              Dialog Open: {showEditCategoryDialog ? 'YES' : 'NO'}
+          
+          {editingCategoryId ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="editCategoryName">Name</Label>
+                  <Input
+                    id="editCategoryName"
+                    value={categoryForm.name}
+                    onChange={(e) => setCategoryForm({...categoryForm, name: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="editCategorySlug">Slug</Label>
+                  <Input
+                    id="editCategorySlug"
+                    value={categoryForm.slug}
+                    onChange={(e) => setCategoryForm({...categoryForm, slug: e.target.value})}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="editCategoryIcon">Icon (emoji)</Label>
+                  <Input
+                    id="editCategoryIcon"
+                    value={categoryForm.icon}
+                    onChange={(e) => setCategoryForm({...categoryForm, icon: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="editCategoryColor">Color</Label>
+                  <Input
+                    id="editCategoryColor"
+                    type="color"
+                    value={categoryForm.color}
+                    onChange={(e) => setCategoryForm({...categoryForm, color: e.target.value})}
+                  />
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="editCategoryType">Category Type</Label>
+                <Select 
+                  value={categoryForm.category_type} 
+                  onValueChange={(value) => setCategoryForm({...categoryForm, category_type: value as any})}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="general">General</SelectItem>
+                    <SelectItem value="announcements">Announcements</SelectItem>
+                    <SelectItem value="support">Support</SelectItem>
+                    <SelectItem value="suggestions">Suggestions</SelectItem>
+                    <SelectItem value="off_topic">Off Topic</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="editMinRoleView">Min Role to View</Label>
+                  <Select value={categoryForm.min_role_to_view} onValueChange={(value) => setCategoryForm({...categoryForm, min_role_to_view: value})}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="No restriction" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No restriction</SelectItem>
+                      <SelectItem value="helper">Helper+</SelectItem>
+                      <SelectItem value="moderator">Moderator+</SelectItem>
+                      <SelectItem value="admin">Admin+</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="editMinRolePost">Min Role to Post</Label>
+                  <Select value={categoryForm.min_role_to_post} onValueChange={(value) => setCategoryForm({...categoryForm, min_role_to_post: value})}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="No restriction" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No restriction</SelectItem>
+                      <SelectItem value="helper">Helper+</SelectItem>
+                      <SelectItem value="moderator">Moderator+</SelectItem>
+                      <SelectItem value="admin">Admin+</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="editCategoryDesc">Description</Label>
+                <Textarea
+                  id="editCategoryDesc"
+                  value={categoryForm.description}
+                  onChange={(e) => setCategoryForm({...categoryForm, description: e.target.value})}
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="py-8 text-center">
+              <p>Loading category data...</p>
             </div>
           )}
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="editCategoryName">Name</Label>
-                <Input
-                  id="editCategoryName"
-                  value={categoryForm.name}
-                  onChange={(e) => setCategoryForm({...categoryForm, name: e.target.value})}
-                  placeholder="Category name"
-                />
-              </div>
-              <div>
-                <Label htmlFor="editCategorySlug">Slug</Label>
-                <Input
-                  id="editCategorySlug"
-                  value={categoryForm.slug}
-                  onChange={(e) => setCategoryForm({...categoryForm, slug: e.target.value})}
-                  placeholder="category-slug"
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="editCategoryIcon">Icon (emoji)</Label>
-                <Input
-                  id="editCategoryIcon"
-                  value={categoryForm.icon}
-                  onChange={(e) => setCategoryForm({...categoryForm, icon: e.target.value})}
-                />
-              </div>
-              <div>
-                <Label htmlFor="editCategoryColor">Color</Label>
-                <Input
-                  id="editCategoryColor"
-                  type="color"
-                  value={categoryForm.color}
-                  onChange={(e) => setCategoryForm({...categoryForm, color: e.target.value})}
-                />
-              </div>
-            </div>
-            <div>
-              <Label htmlFor="editCategoryType">Category Type</Label>
-              <Select value={categoryForm.category_type} onValueChange={(value: any) => setCategoryForm({...categoryForm, category_type: value})}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="general">General</SelectItem>
-                  <SelectItem value="announcements">Announcements</SelectItem>
-                  <SelectItem value="support">Support</SelectItem>
-                  <SelectItem value="suggestions">Suggestions</SelectItem>
-                  <SelectItem value="off_topic">Off Topic</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="editMinRoleView">Min Role to View</Label>
-                <Select value={categoryForm.min_role_to_view} onValueChange={(value) => setCategoryForm({...categoryForm, min_role_to_view: value})}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="No restriction" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">No restriction</SelectItem>
-                    <SelectItem value="helper">Helper+</SelectItem>
-                    <SelectItem value="moderator">Moderator+</SelectItem>
-                    <SelectItem value="admin">Admin+</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="editMinRolePost">Min Role to Post</Label>
-                <Select value={categoryForm.min_role_to_post} onValueChange={(value) => setCategoryForm({...categoryForm, min_role_to_post: value})}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="No restriction" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">No restriction</SelectItem>
-                    <SelectItem value="helper">Helper+</SelectItem>
-                    <SelectItem value="moderator">Moderator+</SelectItem>
-                    <SelectItem value="admin">Admin+</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div>
-              <Label htmlFor="editCategoryDesc">Description</Label>
-              <Textarea
-                id="editCategoryDesc"
-                value={categoryForm.description}
-                onChange={(e) => setCategoryForm({...categoryForm, description: e.target.value})}
-              />
-            </div>
-          </div>
-          <div className="flex justify-end gap-2 mt-6">
-            <Button variant="outline" onClick={() => {
-              setShowEditCategoryDialog(false);
-              setEditingCategoryId(null);
-              setCategoryForm({
-                name: "",
-                description: "",
-                slug: "",
-                icon: "",
-                color: "#6366f1",
-                category_type: "general",
-                min_role_to_view: "",
-                min_role_to_post: ""
-              });
-            }}>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setShowEditCategoryDialog(false)}>
               Cancel
             </Button>
             <Button onClick={updateCategory} disabled={!editingCategoryId}>

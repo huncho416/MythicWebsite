@@ -10,12 +10,13 @@ import {
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { User } from "@supabase/supabase-js";
-import { User as UserIcon, LogOut, Home, ShoppingCart, MessageSquare, HelpCircle, Shield } from "lucide-react";
+import { User as UserIcon, LogOut, Home, ShoppingCart, MessageSquare, HelpCircle, Shield, Vote } from "lucide-react";
 
 const navItems = [
   { to: "/", label: "Home", icon: Home },
   { to: "/store", label: "Store", icon: ShoppingCart },
   { to: "/forums", label: "Forums", icon: MessageSquare },
+  { to: "/vote", label: "Vote", icon: Vote },
   { to: "/support", label: "Support", icon: HelpCircle },
 ];
 

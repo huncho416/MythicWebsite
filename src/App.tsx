@@ -15,6 +15,7 @@ import ResetPassword from "@/pages/ResetPassword";
 import Admin from "@/pages/Admin";
 import Profile from "@/pages/Profile";
 import Post from "@/pages/Post";
+import Vote from "@/pages/Vote";
 import { HelmetProvider } from "react-helmet-async";
 
 const queryClient = new QueryClient();
@@ -33,6 +34,7 @@ const App = () => (
               <Route path="/forums" element={<Forums />} />
               <Route path="/forums/category/:categoryId" element={<ForumCategory />} />
               <Route path="/forums/thread/:threadId" element={<Post />} />
+              <Route path="/vote" element={<Vote />} />
               <Route path="/support" element={<Support />} />
               <Route path="/login" element={<Login />} />
               <Route path="/reset-password" element={<ResetPassword />} />
