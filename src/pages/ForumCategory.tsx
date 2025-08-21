@@ -8,7 +8,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import VoteComponent from "@/components/ui/vote-component";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -107,8 +106,7 @@ export default function ForumCategory() {
         .from('forum_threads')
         .select('*')
         .eq('category_id', categoryId)
-        .order('is_pinned', { ascending: false })
-        .order('last_reply_at', { ascending: false });
+        .order('is_pinned', { ascending: false });
 
       if (error) throw error;
       

@@ -4,7 +4,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShoppingCart, Star, Package, Gift } from "lucide-react";
 import { Tables } from "@/integrations/supabase/types";
 
@@ -25,11 +24,11 @@ export default function Store() {
       setLoading(true);
       
       const [categoriesRes, packagesRes] = await Promise.all([
-        supabase.from('store_categories').select('*').eq('is_active', true).order('sort_order'),
+        supabase.from('store_categories').select('*').eq('is_active', true).order('sort_order', { ascending: true }),
         supabase.from('store_packages').select(`
           *,
           store_categories(name)
-        `).eq('is_active', true).order('price')
+        `).eq('is_active', true).order('price', { ascending: true })
       ]);
 
       if (categoriesRes.data) {
@@ -97,50 +96,170 @@ export default function Store() {
           </CardContent>
         </Card>
       ) : (
-        <Tabs value={activeCategory} onValueChange={setActiveCategory}>
-          <TabsList className="grid w-full grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-            {categories.map((category) => (
-              <TabsTrigger key={category.id} value={category.id} className="flex items-center gap-2">
-                <span style={{ color: category.color }}>{category.icon}</span>
-                <span>{category.name}</span>
-              </TabsTrigger>
-            ))}
-          </TabsList>
+        <div className="flex gap-8">
+          {/* Categories Sidebar */}
+          <div className="w-80 flex-shrink-0">
+            <Card className="sticky top-8">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Package className="h-5 w-5" />
+                  Categories
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="space-y-1">
+                  {categories.map((category) => (
+                    <button
+                      key={category.id}
+                      onClick={() => setActiveCategory(category.id)}
+                      className={`w-full text-left p-4 hover:bg-secondary/50 transition-colors border-l-4 ${
+                        activeCategory === category.id 
+                          ? 'bg-secondary/60 border-l-primary' 
+                          : 'border-l-transparent'
+                      }`}
+                      style={{ 
+                        borderLeftColor: activeCategory === category.id ? category.color : 'transparent',
+                        backgroundColor: activeCategory === category.id ? `${category.color}10` : undefined
+                      }}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div 
+                          className="w-4 h-4 rounded-full flex-shrink-0" 
+                          style={{ backgroundColor: category.color || '#6366f1' }}
+                        />
+                        <div className="flex-1">
+                          <div className="font-medium">{category.name}</div>
+                          {category.description && (
+                            <div className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                              {category.description}
+                            </div>
+                          )}
+                        </div>
+                        <Badge variant="outline" className="text-xs">
+                          {getPackagesByCategory(category.id).length}
+                        </Badge>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
 
-          {categories.map((category) => (
-            <TabsContent key={category.id} value={category.id} className="space-y-6">
-              <div className="text-center mb-8">
-                <h2 className="text-2xl font-bold mb-2">{category.name}</h2>
-                <p className="text-muted-foreground">{category.description}</p>
-              </div>
+          {/* Packages Content */}
+          <div className="flex-1">
+            {categories.filter(cat => cat.id === activeCategory).map((category) => (
+              <div key={category.id} className="space-y-6">
+                {/* Category Header */}
+                <div className="text-center p-6 bg-secondary/20 rounded-lg border-l-4" style={{ borderLeftColor: category.color }}>
+                  <div className="flex items-center justify-center gap-3 mb-4">
+                    <div 
+                      className="w-8 h-8 rounded-full flex items-center justify-center"
+                      style={{ backgroundColor: category.color }}
+                    >
+                      <Package className="h-4 w-4 text-white" />
+                    </div>
+                    <h2 className="text-3xl font-bold">{category.name}</h2>
+                  </div>
+                  {category.description && (
+                    <p className="text-muted-foreground mb-4">{category.description}</p>
+                  )}
+                  <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground">
+                    <span>{getPackagesByCategory(category.id).length} packages available</span>
+                    <span>•</span>
+                    <span>Starting from {getPackagesByCategory(category.id).length > 0 && formatPrice(Math.min(...getPackagesByCategory(category.id).map(pkg => pkg.sale_price || pkg.price)))}</span>
+                  </div>
+                </div>
 
-              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                {getPackagesByCategory(category.id).map((pkg) => {
-                  const IconComponent = getPackageIcon(pkg.package_type);
+                {/* Packages Grid */}
+                <div className="grid gap-6 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
+                  {getPackagesByCategory(category.id).map((pkg) => {
+                    const IconComponent = getPackageIcon(pkg.package_type);
+                    const hasDiscount = pkg.sale_price && pkg.sale_price < pkg.price;
                   
                   return (
-                    <Card key={pkg.id} className="bg-secondary/40 hover:bg-secondary/60 transition-colors">
+                    <Card key={pkg.id} className="bg-secondary/40 hover:bg-secondary/60 transition-all duration-200 hover:shadow-lg border-l-4" style={{ borderLeftColor: category.color }}>
+                      {/* Package Image */}
+                      {pkg.image_url && (
+                        <div className="relative h-48 overflow-hidden rounded-t-lg">
+                          <img 
+                            src={pkg.image_url} 
+                            alt={pkg.name}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              // Hide image if it fails to load
+                              (e.target as HTMLImageElement).style.display = 'none';
+                            }}
+                          />
+                          {pkg.is_featured && (
+                            <Badge variant="secondary" className="absolute top-2 right-2 bg-yellow-100 text-yellow-800">
+                              <Star className="h-3 w-3 mr-1" />
+                              Featured
+                            </Badge>
+                          )}
+                        </div>
+                      )}
+                      
                       <CardHeader>
                         <CardTitle className="flex items-center gap-3">
                           <IconComponent className="h-5 w-5" style={{ color: category.color }} />
                           <div className="flex-1">
                             <div className="flex items-center gap-2">
                               <span>{pkg.name}</span>
-                              {pkg.is_featured && (
-                                <Badge variant="secondary">
+                              {pkg.is_featured && !pkg.image_url && (
+                                <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
                                   <Star className="h-3 w-3 mr-1" />
                                   Featured
                                 </Badge>
                               )}
                             </div>
-                            <div className="text-2xl font-bold text-primary mt-1">
-                              {formatPrice(pkg.price)}
+                            <div className="flex items-center gap-2 mt-1">
+                              {hasDiscount ? (
+                                <>
+                                  <div className="text-2xl font-bold text-green-600">
+                                    {formatPrice(pkg.sale_price!)}
+                                  </div>
+                                  <div className="text-lg line-through text-muted-foreground">
+                                    {formatPrice(pkg.price)}
+                                  </div>
+                                  <Badge variant="destructive" className="text-xs">
+                                    SALE
+                                  </Badge>
+                                </>
+                              ) : (
+                                <div className="text-2xl font-bold text-primary">
+                                  {formatPrice(pkg.price)}
+                                </div>
+                              )}
                             </div>
                           </div>
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-4">
                         <p className="text-sm text-muted-foreground">{pkg.description}</p>
+                        
+                        {/* Stock Information */}
+                        {pkg.stock_quantity !== null && (
+                          <div className="flex items-center gap-2">
+                            <Package className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-sm text-muted-foreground">
+                              {pkg.stock_quantity > 0 ? (
+                                <span className="text-green-600">In Stock ({pkg.stock_quantity} available)</span>
+                              ) : (
+                                <span className="text-red-600">Out of Stock</span>
+                              )}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Duration Information */}
+                        {pkg.duration_days && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-muted-foreground">
+                              Duration: {pkg.duration_days} days
+                            </span>
+                          </div>
+                        )}
                         
                         {pkg.items && typeof pkg.items === 'object' && Array.isArray(pkg.items) && (
                           <div className="space-y-2">
@@ -156,13 +275,18 @@ export default function Store() {
                           </div>
                         )}
                         
-                        <Button variant="hero" className="w-full">
+                        <Button 
+                          variant="hero" 
+                          className="w-full" 
+                          style={{ backgroundColor: category.color }}
+                          disabled={pkg.stock_quantity === 0}
+                        >
                           <ShoppingCart className="h-4 w-4 mr-2" />
-                          Purchase {pkg.name}
+                          {pkg.stock_quantity === 0 ? 'Out of Stock' : `Purchase ${pkg.name}`}
                         </Button>
                         
-                        <div className="flex justify-between text-xs text-muted-foreground">
-                          <span>Type: {pkg.package_type}</span>
+                        <div className="flex justify-between text-xs text-muted-foreground pt-2 border-t">
+                          <span>Type: {pkg.package_type?.replace('_', ' ')}</span>
                           {pkg.sort_order && <span>Priority: {pkg.sort_order}</span>}
                         </div>
                       </CardContent>
@@ -176,10 +300,11 @@ export default function Store() {
                     <p className="text-muted-foreground">No packages available in this category yet.</p>
                   </div>
                 )}
+                </div>
               </div>
-            </TabsContent>
-          ))}
-        </Tabs>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );

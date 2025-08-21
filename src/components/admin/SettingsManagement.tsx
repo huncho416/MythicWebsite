@@ -115,7 +115,7 @@ export default function SettingsManagement() {
         .from('store_packages')
         .select('id, name')
         .eq('is_active', true)
-        .order('name');
+        .order('name', { ascending: true });
 
       if (error) throw error;
       setPackages(data || []);

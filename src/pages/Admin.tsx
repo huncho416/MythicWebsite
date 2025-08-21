@@ -5,13 +5,14 @@ import { User } from "@supabase/supabase-js";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Shield, Users, Store, MessageSquare, LifeBuoy, Settings, Crown, Home } from "lucide-react";
+import { Shield, Users, Store, MessageSquare, LifeBuoy, Settings, Crown, Home, Package } from "lucide-react";
 
 // Import admin components
-import UserManagement from "@/components/admin/UserManagement";
+import SimplifiedUserManagement from "@/components/admin/SimplifiedUserManagement";
 import RoleManagement from "@/components/admin/RoleManagement";
 import HomeMessageManagement from "@/components/admin/HomeMessageManagement";
-import StoreManagement from "@/components/admin/StoreManagement";
+import EnhancedStoreManagement from "@/components/admin/EnhancedStoreManagement";
+import OrderManagement from "@/components/admin/OrderManagement";
 import ForumManagement from "@/components/admin/ForumManagement";
 import SupportManagement from "@/components/admin/SupportManagement";
 import ModerationManagement from "@/components/admin/ModerationManagement";
@@ -237,7 +238,7 @@ export default function Admin() {
       </div>
 
       <Tabs defaultValue="users" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-8">
+        <TabsList className="grid w-full grid-cols-9">
           <TabsTrigger value="users" className="flex items-center gap-2">
             <Users className="h-4 w-4" />
             Users
@@ -258,6 +259,10 @@ export default function Admin() {
             <Store className="h-4 w-4" />
             Store
           </TabsTrigger>
+          <TabsTrigger value="orders" className="flex items-center gap-2">
+            <Package className="h-4 w-4" />
+            Orders
+          </TabsTrigger>
           <TabsTrigger value="support" className="flex items-center gap-2">
             <LifeBuoy className="h-4 w-4" />
             Support
@@ -273,7 +278,7 @@ export default function Admin() {
         </TabsList>
 
         <TabsContent value="users">
-          <UserManagement />
+          <SimplifiedUserManagement />
         </TabsContent>
 
         <TabsContent value="roles">
@@ -289,7 +294,11 @@ export default function Admin() {
         </TabsContent>
 
         <TabsContent value="store">
-          <StoreManagement />
+          <EnhancedStoreManagement />
+        </TabsContent>
+
+        <TabsContent value="orders">
+          <OrderManagement />
         </TabsContent>
 
         <TabsContent value="support">

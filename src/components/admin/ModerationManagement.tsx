@@ -120,7 +120,7 @@ export default function ModerationManagement() {
       const { data, error } = await supabase
         .from("user_profiles")
         .select("id, username, display_name")
-        .order("username");
+        .order("username", { ascending: true });
 
       if (error) throw error;
       setUsers(data || []);

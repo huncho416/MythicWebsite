@@ -85,9 +85,11 @@ A complete, modern Minecraft server website with full admin panel built with Rea
 src/
 ├── components/
 │   ├── admin/              # Admin panel components
-│   │   ├── UserManagement.tsx
+│   │   ├── SimplifiedUserManagement.tsx
 │   │   ├── ForumManagement.tsx
-│   │   ├── StoreManagement.tsx
+│   │   ├── EnhancedStoreManagement.tsx
+│   │   ├── OrderManagement.tsx
+│   │   ├── SupportManagement.tsx
 │   │   └── ...
 │   ├── layout/             # Layout components
 │   │   ├── Header.tsx

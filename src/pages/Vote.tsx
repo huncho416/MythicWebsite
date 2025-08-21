@@ -50,7 +50,7 @@ export default function Vote() {
         .from('server_voting_sites')
         .select('*')
         .eq('is_active', true)
-        .order('display_order');
+        .order('display_order', { ascending: true });
 
       if (sitesError) throw sitesError;
       setVotingSites(sites || []);
@@ -60,7 +60,7 @@ export default function Vote() {
         .from('voting_rewards')
         .select('*')
         .eq('is_active', true)
-        .order('display_order');
+        .order('display_order', { ascending: true });
 
       if (rewardsError) throw rewardsError;
       setVotingRewards(rewards || []);

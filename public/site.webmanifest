@@ -9,14 +9,18 @@
   "icons": [
     {
       "src": "/favicon.ico",
-      "sizes": "any",
+      "sizes": "16x16 32x32 48x48",
       "type": "image/x-icon"
     },
     {
       "src": "/favicon.png",
-      "sizes": "any",
-      "type": "image/png",
-      "purpose": "any maskable"
+      "sizes": "48x48",
+      "type": "image/png"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "48x48",
+      "type": "image/png"
     }
   ]
 }

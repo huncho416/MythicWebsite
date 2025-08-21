@@ -79,7 +79,7 @@ export default function ForumManagement() {
       setLoading(true);
       
       const [categoriesRes, threadsRes, postsRes] = await Promise.all([
-        supabase.from('forum_categories').select('*').order('sort_order'),
+        supabase.from('forum_categories').select('*').order('sort_order', { ascending: true }),
         supabase.from('forum_threads').select('*').order('created_at', { ascending: false }).limit(50),
         supabase.from('forum_posts').select('*').order('created_at', { ascending: false }).limit(50)
       ]);

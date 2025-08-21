@@ -42,7 +42,7 @@ export default function Forums() {
       const { data: categoriesData, error: categoriesError } = await supabase
         .from('forum_categories')
         .select('*')
-        .order('sort_order');
+        .order('sort_order', { ascending: true });
 
       if (categoriesError) throw categoriesError;
       setCategories(categoriesData || []);
@@ -64,7 +64,7 @@ export default function Forums() {
           .eq('thread_id.category_id', category.id);
 
         // Get latest activity (most recent thread or post)
-        const { data: latestThread } = await supabase
+        const { data: latestThread, error: threadError } = await supabase
           .from('forum_threads')
           .select(`
             id,
@@ -77,9 +77,8 @@ export default function Forums() {
           `)
           .eq('category_id', category.id)
           .order('last_reply_at', { ascending: false, nullsFirst: false })
-          .order('created_at', { ascending: false })
           .limit(1)
-          .single();
+          .maybeSingle();
 
         // Get author profile if thread exists
         let threadWithAuthor: any = latestThread;
