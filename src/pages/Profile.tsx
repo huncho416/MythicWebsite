@@ -12,6 +12,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { User, Settings, Shield, Calendar, Globe, Mail, Gamepad2, Upload, X } from "lucide-react";
 import { Tables } from "@/integrations/supabase/types";
+import { validateFileUpload, validateUsername, validateEmail, validateUrl } from "@/lib/security";
+import { compressImage } from "@/lib/performance";
+import { LazyImage } from "@/components/ui/lazy-image";
 
 export default function Profile() {
   const [profile, setProfile] = useState<Tables<'user_profiles'> | null>(null);

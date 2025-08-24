@@ -8,6 +8,7 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
+import { validateEmail, validatePassword, validateUsername, rateLimiter } from "@/lib/security";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -15,13 +16,67 @@ export default function Login() {
   const [username, setUsername] = useState("");
   const [loading, setLoading] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const { toast } = useToast();
   const navigate = useNavigate();
   
   const canonical = typeof window !== 'undefined' ? window.location.origin + '/login' : '';
 
+  const validateLoginForm = (): boolean => {
+    const newErrors: Record<string, string> = {};
+    
+    const emailValidation = validateEmail(email);
+    if (!emailValidation.isValid) {
+      newErrors.email = emailValidation.error!;
+    }
+    
+    if (!password) {
+      newErrors.password = 'Password is required';
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const validateSignupForm = (): boolean => {
+    const newErrors: Record<string, string> = {};
+    
+    const emailValidation = validateEmail(email);
+    if (!emailValidation.isValid) {
+      newErrors.email = emailValidation.error!;
+    }
+    
+    const usernameValidation = validateUsername(username);
+    if (!usernameValidation.isValid) {
+      newErrors.username = usernameValidation.error!;
+    }
+    
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.isValid) {
+      newErrors.password = passwordValidation.error!;
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Rate limiting check
+    if (!rateLimiter.isAllowed('login', 5, 60000)) { // 5 attempts per minute
+      toast({
+        title: "Too many attempts",
+        description: "Please wait before trying again",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (!validateLoginForm()) {
+      return;
+    }
+    
     setLoading(true);
     
     try {
@@ -52,6 +107,21 @@ export default function Login() {
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Rate limiting check
+    if (!rateLimiter.isAllowed('signup', 3, 300000)) { // 3 attempts per 5 minutes
+      toast({
+        title: "Too many signup attempts",
+        description: "Please wait before trying again",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (!validateSignupForm()) {
+      return;
+    }
+    
     setLoading(true);
     
     try {
@@ -182,7 +252,9 @@ export default function Login() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
+                    aria-invalid={errors.email ? "true" : "false"}
                   />
+                  {errors.email && <p className="text-sm text-red-600">{errors.email}</p>}
                 </div>
                 <div>
                   <Label htmlFor="login-password">Password</Label>
@@ -193,7 +265,9 @@ export default function Login() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
+                    aria-invalid={errors.password ? "true" : "false"}
                   />
+                  {errors.password && <p className="text-sm text-red-600">{errors.password}</p>}
                 </div>
                 <Button className="w-full" variant="hero" type="submit" disabled={loading}>
                   {loading ? "Logging in..." : "Login"}
@@ -230,7 +304,9 @@ export default function Login() {
                     maxLength={20}
                     pattern="[a-z0-9_]+"
                     title="Username can only contain lowercase letters, numbers, and underscores"
+                    aria-invalid={errors.username ? "true" : "false"}
                   />
+                  {errors.username && <p className="text-sm text-red-600">{errors.username}</p>}
                   <p className="text-xs text-muted-foreground mt-1">
                     3-20 characters, lowercase letters, numbers, and underscores only
                   </p>
@@ -244,7 +320,9 @@ export default function Login() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
+                    aria-invalid={errors.email ? "true" : "false"}
                   />
+                  {errors.email && <p className="text-sm text-red-600">{errors.email}</p>}
                   <p className="text-xs text-muted-foreground mt-1">
                     Your email will be private and used only for account verification
                   </p>
@@ -259,7 +337,9 @@ export default function Login() {
                     onChange={(e) => setPassword(e.target.value)}
                     required
                     minLength={6}
+                    aria-invalid={errors.password ? "true" : "false"}
                   />
+                  {errors.password && <p className="text-sm text-red-600">{errors.password}</p>}
                 </div>
                 <Button className="w-full" variant="hero" type="submit" disabled={loading}>
                   {loading ? "Creating account..." : "Create Account"}

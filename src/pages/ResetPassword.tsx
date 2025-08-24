@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Helmet } from "react-helmet-async";
+import { validatePassword } from "@/lib/security";
 
 export default function ResetPassword() {
   const [password, setPassword] = useState("");
@@ -42,10 +43,11 @@ export default function ResetPassword() {
       return;
     }
 
-    if (password.length < 6) {
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.isValid) {
       toast({
-        title: "Password too short",
-        description: "Password must be at least 6 characters long.",
+        title: "Invalid Password",
+        description: passwordValidation.error || "Password does not meet requirements.",
         variant: "destructive",
       });
       return;
