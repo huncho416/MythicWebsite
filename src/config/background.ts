@@ -6,8 +6,8 @@
  */
 
 export const BACKGROUND_CONFIG = {
-  // Main Minecraft background image
-  IMAGE_URL: '/minecraft-background.jpg',
+  // Main Minecraft background image (temporarily use banner until proper image is added)
+  IMAGE_URL: '/banner.jpg',
   
   // Alternative Minecraft backgrounds (uncomment to use)
   ALTERNATIVE_IMAGES: [
