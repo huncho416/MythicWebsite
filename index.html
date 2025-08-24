@@ -29,13 +29,12 @@
     <meta name="twitter:description" content="MythicPvP Minecraft server — play epic gamemodes, shop ranks, and join our Discord community." />
     <meta name="twitter:image" content="/banner.jpg" />
     
-    <!-- Security Headers -->
+    <!-- Security Headers (Note: X-Frame-Options should be set by server, not meta tag) -->
     <meta http-equiv="Permissions-Policy" content="interest-cohort=()" />
     <meta http-equiv="X-Content-Type-Options" content="nosniff" />
-    <meta http-equiv="X-Frame-Options" content="DENY" />
     <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
     
-    <!-- Content Security Policy -->
+    <!-- Content Security Policy (Updated for Discord iframe) -->
     <meta http-equiv="Content-Security-Policy" content="
       default-src 'self';
       script-src 'self' 'unsafe-inline' 'unsafe-eval' https://fonts.googleapis.com;
@@ -43,7 +42,7 @@
       img-src 'self' data: blob: https: http:;
       font-src 'self' https://fonts.gstatic.com;
       connect-src 'self' https://*.supabase.co wss://*.supabase.co;
-      frame-src 'none';
+      frame-src 'self' https://discord.com https://discordapp.com;
       object-src 'none';
     " />
     

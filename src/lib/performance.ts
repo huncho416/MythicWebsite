@@ -240,16 +240,23 @@ export const initPerformanceMonitoring = () => {
     // });
   };
 
-  // Dynamically import Web Vitals library if available
-  import('web-vitals').then(({ getCLS, getFID, getFCP, getLCP, getTTFB }) => {
-    getCLS(reportVital);
-    getFID(reportVital);
-    getFCP(reportVital);
-    getLCP(reportVital);
-    getTTFB(reportVital);
-  }).catch(() => {
+  // Dynamically import Web Vitals library with better error handling
+  try {
+    import('web-vitals').then((webVitals) => {
+      // Use any available methods dynamically
+      const methods = ['onCLS', 'onFID', 'onFCP', 'onLCP', 'onTTFB', 'onINP'];
+      
+      methods.forEach(method => {
+        if (typeof (webVitals as any)[method] === 'function') {
+          (webVitals as any)[method](reportVital);
+        }
+      });
+    }).catch((error) => {
+      console.log('Web Vitals library not available:', error.message);
+    });
+  } catch (error) {
     console.log('Web Vitals library not available');
-  });
+  }
 };
 
 /**
@@ -258,19 +265,27 @@ export const initPerformanceMonitoring = () => {
 export const preloadCriticalResources = () => {
   if (typeof window === 'undefined') return;
 
-  // Preload critical images
+  // Preload critical images that actually exist
   const criticalImages = [
-    '/logo.png',
     '/banner.jpg',
-    '/avatar.png'
+    '/logo.jpg',
+    '/favicon.png'
   ];
 
-  criticalImages.forEach(src => {
-    const link = document.createElement('link');
-    link.rel = 'preload';
-    link.as = 'image';
-    link.href = src;
-    document.head.appendChild(link);
+  criticalImages.forEach(async (src) => {
+    try {
+      // Check if image exists first
+      const response = await fetch(src, { method: 'HEAD' });
+      if (response.ok) {
+        const link = document.createElement('link');
+        link.rel = 'preload';
+        link.as = 'image';
+        link.href = src;
+        document.head.appendChild(link);
+      }
+    } catch (error) {
+      console.log(`Skipping preload for ${src}: not found`);
+    }
   });
 
   // Preload fonts
@@ -288,14 +303,24 @@ export const preloadCriticalResources = () => {
 };
 
 /**
- * Service Worker registration for caching
+ * Service Worker registration for caching (production only)
  */
 export const registerServiceWorker = async () => {
-  if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
+  // Only register service worker in production
+  if (typeof window === 'undefined' || 
+      !('serviceWorker' in navigator) || 
+      import.meta.env.DEV) {
     return;
   }
 
   try {
+    // Check if service worker file exists first
+    const response = await fetch('/sw.js', { method: 'HEAD' });
+    if (!response.ok) {
+      console.log('Service Worker file not found, skipping registration');
+      return;
+    }
+
     const registration = await navigator.serviceWorker.register('/sw.js');
     console.log('Service Worker registered:', registration);
     
@@ -312,7 +337,7 @@ export const registerServiceWorker = async () => {
       }
     });
   } catch (error) {
-    console.error('Service Worker registration failed:', error);
+    console.log('Service Worker not available or registration failed:', error.message);
   }
 };
 

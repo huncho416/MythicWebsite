@@ -1,2 +1,9 @@
-/* Placeholder for a high-quality Minecraft landscape background image
-   This will be replaced with an actual Minecraft screenshot/landscape */
+/* Minecraft Background Image Placeholder
+   
+   To add a real Minecraft background:
+   1. Take a high-quality Minecraft screenshot (1920x1080 or higher)
+   2. Save it as minecraft-background.jpg in this folder
+   3. Replace this placeholder file
+   
+   For now, the CSS will use the fallback pattern.
+*/
