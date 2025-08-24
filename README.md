@@ -13,8 +13,6 @@ A complete, modern Minecraft server website with full admin panel built with Rea
 🖼️ **Image Optimization** - Automatic compression and lazy loading  
 🎮 **Minecraft Background System** - Easy-to-update homepage backgrounds with fallback support
 
-**Security Score: 8.5/10** | **Performance Score: 8.5/10** | **Production Ready**
-
 ### Public Website
 - **Modern Homepage** with hero section, server stats, and news
 - **Store System** for ranks, keys, and cosmetics
@@ -154,11 +152,6 @@ src/
 ├── verify-setup.js                    # Setup verification script
 ├── generate-background.html           # Minecraft background generator
 ├── setup-background.sh                # Background setup script
-├── BACKGROUND_GUIDE.md                # Background customization guide
-├── PRODUCTION_DEPLOYMENT_GUIDE.md     # Deployment instructions
-├── SECURITY_AUDIT_REPORT.md           # Security analysis
-├── PERFORMANCE_OPTIMIZATION_REPORT.md # Performance analysis
-└── SECURITY_PERFORMANCE_IMPLEMENTATION.md # Implementation guide
 ```
 
 ## 🗄️ Database Schema
@@ -395,11 +388,6 @@ For support and questions:
 
 ---
 
-**Made with ❤️ for the Minecraft community**
-
-Server IP: `play.mythicpvp.net`  
-Discord: `discord.gg/mythicpvp`
-
 ## 🎮 Minecraft Background Customization
 
 The homepage features a dynamic Minecraft-themed background system that's easy to customize:
@@ -431,7 +419,10 @@ export const BACKGROUND_CONFIG = {
     '/minecraft-landscape-1.jpg',
     '/minecraft-cityscape.jpg'
   ]
-};
 ```
 
-📖 **Detailed Guide**: See `BACKGROUND_GUIDE.md` for complete customization instructions.
+**Made with ❤️ for the Minecraft community**
+
+Server IP: `play.mythicpvp.net`  
+Discord: `discord.gg/mythicpvp`
+};
