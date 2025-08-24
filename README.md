@@ -11,10 +11,9 @@ A complete, modern Minecraft server website with full admin panel built with Rea
 ⚡ **Code Splitting** - Admin panel loads on-demand for faster initial page loads  
 📊 **Performance Monitoring** - Real-time Web Vitals tracking and analytics  
 🖼️ **Image Optimization** - Automatic compression and lazy loading  
+🎮 **Minecraft Background System** - Easy-to-update homepage backgrounds with fallback support
 
 **Security Score: 8.5/10** | **Performance Score: 8.5/10** | **Production Ready**
-
-## 🎮 Features
 
 ### Public Website
 - **Modern Homepage** with hero section, server stats, and news
@@ -137,10 +136,15 @@ src/
 ├── integrations/
 │   └── supabase/           # Database integration
 ├── hooks/                  # Custom React hooks
+│   ├── use-mobile.tsx     # Mobile detection
+│   ├── use-toast.ts       # Toast notifications
+│   └── use-background.ts  # Background image loading
 ├── lib/                    # Utility functions
 │   ├── utils.ts           # General utilities
 │   ├── security.ts        # Security validation
 │   └── performance.ts     # Performance optimization
+├── config/                 # Configuration files
+│   └── background.ts      # Background image settings
 ```
 
 ### 📋 Additional Files
@@ -148,6 +152,9 @@ src/
 ├── .env.local                         # Environment variables (secure)
 ├── database_indexes.sql               # Database performance indexes
 ├── verify-setup.js                    # Setup verification script
+├── generate-background.html           # Minecraft background generator
+├── setup-background.sh                # Background setup script
+├── BACKGROUND_GUIDE.md                # Background customization guide
 ├── PRODUCTION_DEPLOYMENT_GUIDE.md     # Deployment instructions
 ├── SECURITY_AUDIT_REPORT.md           # Security analysis
 ├── PERFORMANCE_OPTIMIZATION_REPORT.md # Performance analysis
@@ -337,8 +344,6 @@ Expected Performance:
 └── Time to Interactive: 45-55% improvement
 ```
 
-**📋 Complete Guide**: See `PRODUCTION_DEPLOYMENT_GUIDE.md` for detailed deployment checklist.
-
 ## 🤝 Contributing
 
 1. Fork the repository
@@ -394,3 +399,39 @@ For support and questions:
 
 Server IP: `play.mythicpvp.net`  
 Discord: `discord.gg/mythicpvp`
+
+## 🎮 Minecraft Background Customization
+
+The homepage features a dynamic Minecraft-themed background system that's easy to customize:
+
+### Quick Setup
+1. **Add your Minecraft screenshot**: Save as `public/minecraft-background.jpg`
+2. **Use the generator**: Open `generate-background.html` for a quick placeholder
+3. **Configure settings**: Edit `src/config/background.ts` for advanced options
+
+### Features
+- **🖼️ Easy Image Replacement** - Single file update changes the entire homepage
+- **📱 Responsive Design** - Automatically adapts to all screen sizes
+- **🔄 Fallback System** - Graceful degradation if images fail to load
+- **⚡ Performance Optimized** - Lazy loading and compression support
+- **🎨 Overlay Control** - Adjustable gradients for text readability
+
+### Image Requirements
+- **Resolution**: 1920x1080+ (2560x1440 recommended)
+- **Format**: JPG, PNG, or WebP
+- **Size**: Under 500KB for optimal loading
+- **Content**: High-contrast Minecraft landscapes work best
+
+### Configuration
+```typescript
+// src/config/background.ts
+export const BACKGROUND_CONFIG = {
+  IMAGE_URL: '/minecraft-background.jpg', // Change this!
+  ALTERNATIVE_IMAGES: [
+    '/minecraft-landscape-1.jpg',
+    '/minecraft-cityscape.jpg'
+  ]
+};
+```
+
+📖 **Detailed Guide**: See `BACKGROUND_GUIDE.md` for complete customization instructions.
