@@ -5,12 +5,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Tables } from "@/integrations/supabase/types";
 import { Plus, Pencil, Trash2, MessageSquare, Eye, EyeOff, Calendar } from "lucide-react";
+import FeaturedProductManagement from "./FeaturedProductManagement";
 
 export default function HomeMessageManagement() {
   const [messages, setMessages] = useState<Tables<'home_messages'>[]>([]);
@@ -188,7 +189,12 @@ export default function HomeMessageManagement() {
   };
 
   return (
-    <Card>
+    <div className="space-y-6">
+      {/* Featured Product Management */}
+      <FeaturedProductManagement />
+
+      {/* Home Messages Management */}
+      <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="flex items-center gap-2">
           <MessageSquare className="h-5 w-5" />
@@ -204,6 +210,9 @@ export default function HomeMessageManagement() {
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingMessage ? 'Edit Message' : 'Create New Message'}</DialogTitle>
+              <DialogDescription>
+                {editingMessage ? 'Modify the message details below.' : 'Create a new home page message with title, content, and display settings.'}
+              </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
@@ -342,5 +351,6 @@ export default function HomeMessageManagement() {
         )}
       </CardContent>
     </Card>
+    </div>
   );
 }

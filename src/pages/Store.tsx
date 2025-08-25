@@ -4,31 +4,81 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ShoppingCart, Star, Package, Gift } from "lucide-react";
+import { ShoppingCart, Star, Package, Gift, Plus, Minus } from "lucide-react";
 import { Tables } from "@/integrations/supabase/types";
+import { useCart } from "@/hooks/use-cart";
+import { Link } from "react-router-dom";
+import { useToast } from "@/hooks/use-toast";
+import { MinecraftUsernamePrompt } from "@/components/ui/minecraft-username-prompt";
 
 export default function Store() {
   const [categories, setCategories] = useState<Tables<'store_categories'>[]>([]);
   const [packages, setPackages] = useState<Tables<'store_packages'>[]>([]);
+  const [saleSettings, setSaleSettings] = useState<{
+    enabled: boolean;
+    percentage: number;
+    start_date: string | null;
+    end_date: string | null;
+    message: string;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState<string>("");
+  const [showMinecraftPrompt, setShowMinecraftPrompt] = useState(false);
+  const [minecraftUsername, setMinecraftUsername] = useState<string | null>(null);
+  const [checkingUsername, setCheckingUsername] = useState(true);
+  const { cart, items, totals, addItem, removeItem, updateQuantity } = useCart();
+  const { toast } = useToast();
 
   const canonical = typeof window !== 'undefined' ? window.location.origin + '/store' : '';
 
   useEffect(() => {
+    checkMinecraftUsername();
     loadStoreData();
   }, []);
+
+  const checkMinecraftUsername = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        setCheckingUsername(false);
+        return;
+      }
+
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('minecraft_username')
+        .eq('user_id', user.id)
+        .single();
+
+      if (profile?.minecraft_username) {
+        setMinecraftUsername(profile.minecraft_username);
+      } else {
+        setShowMinecraftPrompt(true);
+      }
+    } catch (error) {
+      console.error('Error checking Minecraft username:', error);
+    } finally {
+      setCheckingUsername(false);
+    }
+  };
+
+  const handleMinecraftUsernameSet = (username: string) => {
+    setMinecraftUsername(username);
+    setShowMinecraftPrompt(false);
+  };
 
   const loadStoreData = async () => {
     try {
       setLoading(true);
       
-      const [categoriesRes, packagesRes] = await Promise.all([
+      const [categoriesRes, packagesRes, saleRes] = await Promise.all([
         supabase.from('store_categories').select('*').eq('is_active', true).order('sort_order', { ascending: true }),
         supabase.from('store_packages').select(`
           *,
           store_categories(name)
-        `).eq('is_active', true).order('price', { ascending: true })
+        `).eq('is_active', true).order('price', { ascending: true }),
+        supabase.from('store_settings').select('value').eq('key', 'global_sale').single()
       ]);
 
       if (categoriesRes.data) {
@@ -38,6 +88,27 @@ export default function Store() {
         }
       }
       if (packagesRes.data) setPackages(packagesRes.data);
+      
+      // Load sale settings
+      if (saleRes.data?.value) {
+        const saleData = saleRes.data.value as any;
+        const now = new Date();
+        const startDate = saleData.start_date ? new Date(saleData.start_date) : null;
+        const endDate = saleData.end_date ? new Date(saleData.end_date) : null;
+        
+        // Check if sale is currently active
+        const isActive = saleData.enabled && 
+          (!startDate || now >= startDate) && 
+          (!endDate || now <= endDate);
+          
+        setSaleSettings({
+          enabled: isActive,
+          percentage: saleData.percentage || 0,
+          start_date: saleData.start_date,
+          end_date: saleData.end_date,
+          message: saleData.message || ''
+        });
+      }
       
     } catch (error) {
       console.error('Error loading store data:', error);
@@ -54,6 +125,28 @@ export default function Store() {
     return `$${price.toFixed(2)}`;
   };
 
+  const getFinalPrice = (pkg: Tables<'store_packages'>) => {
+    // Use individual package sale price if available
+    if (pkg.sale_price && pkg.sale_price < pkg.price) {
+      return pkg.sale_price;
+    }
+    
+    // Apply global sale if active
+    if (saleSettings?.enabled && saleSettings.percentage > 0) {
+      return pkg.price * (1 - saleSettings.percentage / 100);
+    }
+    
+    return pkg.price;
+  };
+
+  const getOriginalPrice = (pkg: Tables<'store_packages'>) => {
+    return pkg.price;
+  };
+
+  const hasDiscount = (pkg: Tables<'store_packages'>) => {
+    return getFinalPrice(pkg) < getOriginalPrice(pkg);
+  };
+
   const getPackageIcon = (packageType: string) => {
     const icons: Record<string, any> = {
       rank: Star,
@@ -64,7 +157,53 @@ export default function Store() {
     return icons[packageType] || Package;
   };
 
-  if (loading) {
+  const getItemQuantityInCart = (packageId: string) => {
+    const cartItem = items.find(item => item.product_id === packageId);
+    return cartItem ? cartItem.quantity : 0;
+  };
+
+  const handleAddToCart = async (pkg: Tables<'store_packages'>) => {
+    // Check if Minecraft username is required
+    if (!minecraftUsername) {
+      setShowMinecraftPrompt(true);
+      return;
+    }
+
+    try {
+      await addItem(pkg.id, 1);
+      toast({
+        title: "Added to cart",
+        description: `${pkg.name} has been added to your cart.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to add item to cart. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleUpdateQuantity = async (packageId: string, newQuantity: number) => {
+    const cartItem = items.find(item => item.product_id === packageId);
+    if (!cartItem) return;
+    
+    try {
+      if (newQuantity === 0) {
+        await removeItem(cartItem.id);
+      } else {
+        await updateQuantity(cartItem.id, newQuantity);
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update cart. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  if (loading || checkingUsername) {
     return (
       <div className="container mx-auto py-12">
         <Helmet>
@@ -73,7 +212,9 @@ export default function Store() {
           <link rel="canonical" href={canonical} />
         </Helmet>
         <h1 className="font-brand text-4xl mb-8">Server Store</h1>
-        <div className="text-center py-8">Loading store...</div>
+        <div className="text-center py-8">
+          {checkingUsername ? 'Verifying profile...' : 'Loading store...'}
+        </div>
       </div>
     );
   }
@@ -86,6 +227,65 @@ export default function Store() {
         <link rel="canonical" href={canonical} />
       </Helmet>
       <h1 className="font-brand text-4xl mb-8">Server Store</h1>
+      
+      {/* Global Sale Banner */}
+      {saleSettings?.enabled && (
+        <div className="mb-8 p-6 bg-gradient-to-r from-red-500/10 to-orange-500/10 border border-red-500/20 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-red-500 rounded-full">
+                <Gift className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-red-600">🔥 SALE ACTIVE!</h3>
+                <p className="text-sm text-muted-foreground">
+                  {saleSettings.message || `Save ${saleSettings.percentage}% on all packages!`}
+                </p>
+                {saleSettings.end_date && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Sale ends: {new Date(saleSettings.end_date).toLocaleDateString()}
+                  </p>
+                )}
+              </div>
+            </div>
+            <Badge variant="destructive" className="text-lg px-3 py-1">
+              {saleSettings.percentage}% OFF
+            </Badge>
+          </div>
+        </div>
+      )}
+      
+      {/* Cart Summary */}
+      {items.length > 0 && (
+        <Card className="mb-8 bg-primary/5 border-primary/20">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <ShoppingCart className="h-5 w-5 text-primary" />
+                <div>
+                  <h3 className="font-medium">Your Cart</h3>
+                  <p className="text-sm text-muted-foreground">
+                    {items.length} item{items.length !== 1 ? 's' : ''} • Total: ${totals.total.toFixed(2)}
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button asChild variant="outline" size="sm">
+                  <Link to="/cart">
+                    <ShoppingCart className="h-4 w-4 mr-2" />
+                    View Cart
+                  </Link>
+                </Button>
+                <Button asChild size="sm">
+                  <Link to="/checkout">
+                    Checkout
+                  </Link>
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
       
       {categories.length === 0 ? (
         <Card className="bg-secondary/40">
@@ -167,7 +367,7 @@ export default function Store() {
                   <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground">
                     <span>{getPackagesByCategory(category.id).length} packages available</span>
                     <span>•</span>
-                    <span>Starting from {getPackagesByCategory(category.id).length > 0 && formatPrice(Math.min(...getPackagesByCategory(category.id).map(pkg => pkg.sale_price || pkg.price)))}</span>
+                    <span>Starting from {getPackagesByCategory(category.id).length > 0 && formatPrice(Math.min(...getPackagesByCategory(category.id).map(pkg => getFinalPrice(pkg))))}</span>
                   </div>
                 </div>
 
@@ -175,7 +375,9 @@ export default function Store() {
                 <div className="grid gap-6 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
                   {getPackagesByCategory(category.id).map((pkg) => {
                     const IconComponent = getPackageIcon(pkg.package_type);
-                    const hasDiscount = pkg.sale_price && pkg.sale_price < pkg.price;
+                    const finalPrice = getFinalPrice(pkg);
+                    const originalPrice = getOriginalPrice(pkg);
+                    const packageHasDiscount = hasDiscount(pkg);
                   
                   return (
                     <Card key={pkg.id} className="bg-secondary/40 hover:bg-secondary/60 transition-all duration-200 hover:shadow-lg border-l-4" style={{ borderLeftColor: category.color }}>
@@ -214,13 +416,13 @@ export default function Store() {
                               )}
                             </div>
                             <div className="flex items-center gap-2 mt-1">
-                              {hasDiscount ? (
+                              {packageHasDiscount ? (
                                 <>
                                   <div className="text-2xl font-bold text-green-600">
-                                    {formatPrice(pkg.sale_price!)}
+                                    {formatPrice(finalPrice)}
                                   </div>
                                   <div className="text-lg line-through text-muted-foreground">
-                                    {formatPrice(pkg.price)}
+                                    {formatPrice(originalPrice)}
                                   </div>
                                   <Badge variant="destructive" className="text-xs">
                                     SALE
@@ -228,7 +430,7 @@ export default function Store() {
                                 </>
                               ) : (
                                 <div className="text-2xl font-bold text-primary">
-                                  {formatPrice(pkg.price)}
+                                  {formatPrice(finalPrice)}
                                 </div>
                               )}
                             </div>
@@ -275,15 +477,73 @@ export default function Store() {
                           </div>
                         )}
                         
-                        <Button 
-                          variant="hero" 
-                          className="w-full" 
-                          style={{ backgroundColor: category.color }}
-                          disabled={pkg.stock_quantity === 0}
-                        >
-                          <ShoppingCart className="h-4 w-4 mr-2" />
-                          {pkg.stock_quantity === 0 ? 'Out of Stock' : `Purchase ${pkg.name}`}
-                        </Button>
+                        {/* Cart Controls */}
+                        {(() => {
+                          const quantityInCart = getItemQuantityInCart(pkg.id);
+                          const isOutOfStock = pkg.stock_quantity === 0;
+                          
+                          if (isOutOfStock) {
+                            return (
+                              <Button 
+                                variant="secondary" 
+                                className="w-full" 
+                                disabled
+                              >
+                                <Package className="h-4 w-4 mr-2" />
+                                Out of Stock
+                              </Button>
+                            );
+                          }
+                          
+                          if (quantityInCart === 0) {
+                            return (
+                              <Button 
+                                variant="hero" 
+                                className="w-full" 
+                                style={{ backgroundColor: category.color }}
+                                onClick={() => handleAddToCart(pkg)}
+                              >
+                                <ShoppingCart className="h-4 w-4 mr-2" />
+                                Add to Cart
+                              </Button>
+                            );
+                          }
+                          
+                          return (
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleUpdateQuantity(pkg.id, quantityInCart - 1)}
+                                  className="h-8 w-8 p-0"
+                                >
+                                  <Minus className="h-4 w-4" />
+                                </Button>
+                                <span className="flex-1 text-center text-sm font-medium">
+                                  {quantityInCart} in cart
+                                </span>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleUpdateQuantity(pkg.id, quantityInCart + 1)}
+                                  className="h-8 w-8 p-0"
+                                  disabled={pkg.stock_quantity !== null && quantityInCart >= pkg.stock_quantity}
+                                >
+                                  <Plus className="h-4 w-4" />
+                                </Button>
+                              </div>
+                              <Button 
+                                variant="outline"
+                                size="sm"
+                                className="w-full text-red-600 hover:text-red-700"
+                                onClick={() => handleUpdateQuantity(pkg.id, 0)}
+                              >
+                                Remove from Cart
+                              </Button>
+                            </div>
+                          );
+                        })()}
                         
                         <div className="flex justify-between text-xs text-muted-foreground pt-2 border-t">
                           <span>Type: {pkg.package_type?.replace('_', ' ')}</span>
@@ -306,6 +566,12 @@ export default function Store() {
           </div>
         </div>
       )}
+
+      {/* Minecraft Username Prompt */}
+      <MinecraftUsernamePrompt
+        open={showMinecraftPrompt}
+        onUsernameSet={handleMinecraftUsernameSet}
+      />
     </div>
   );
 }

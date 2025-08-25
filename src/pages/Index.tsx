@@ -12,6 +12,7 @@ import { User } from "@supabase/supabase-js";
 import { useToast } from "@/hooks/use-toast";
 import { MessageCircle, Send } from "lucide-react";
 import { Tables } from "@/integrations/supabase/types";
+import { getMinecraftPlayerHead } from "@/lib/minecraft-utils";
 
 const Index = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -67,38 +68,38 @@ const Index = () => {
         .from('site_settings')
         .select('value')
         .eq('key', 'featured_package_id')
-        .single();
+        .maybeSingle();
 
       if (packageIdError) {
         console.error('Error loading featured package ID:', packageIdError);
-        return;
-      }
+        // Fall back to old settings-based approach
+      } else if (packageIdSetting) {
+        let packageId;
+        try {
+          const valueStr = String(packageIdSetting?.value || '');
+          packageId = valueStr ? JSON.parse(valueStr) : null;
+        } catch {
+          packageId = String(packageIdSetting?.value || '');
+        }
 
-      let packageId;
-      try {
-        const valueStr = String(packageIdSetting?.value || '');
-        packageId = valueStr ? JSON.parse(valueStr) : null;
-      } catch {
-        packageId = String(packageIdSetting?.value || '');
-      }
+        if (packageId) {
+          // Load the actual package data
+          const { data: packageData, error: packageError } = await supabase
+            .from('store_packages')
+            .select('name, price, image_url')
+            .eq('id', packageId)
+            .single();
 
-      if (packageId) {
-        // Load the actual package data
-        const { data: packageData, error: packageError } = await supabase
-          .from('store_packages')
-          .select('name, price, image_url')
-          .eq('id', packageId)
-          .single();
-
-        if (packageError) {
-          console.error('Error loading featured package:', packageError);
-        } else if (packageData) {
-          setFeaturedProduct({
-            name: packageData.name,
-            price: packageData.price.toString(),
-            image: packageData.image_url || ""
-          });
-          return;
+          if (packageError) {
+            console.error('Error loading featured package:', packageError);
+          } else if (packageData) {
+            setFeaturedProduct({
+              name: packageData.name,
+              price: packageData.price.toString(),
+              image: packageData.image_url || ""
+            });
+            return;
+          }
         }
       }
 
@@ -255,7 +256,7 @@ const Index = () => {
       if (userIds.length > 0) {
         const { data: profiles } = await supabase
           .from('user_profiles')
-          .select('user_id, username')
+          .select('user_id, username, minecraft_username')
           .in('user_id', userIds);
 
         // Add usernames to the donor data
@@ -263,6 +264,7 @@ const Index = () => {
           const profile = profiles?.find(p => p.user_id === donor.userId);
           return {
             username: profile?.username || 'Unknown User',
+            minecraftUsername: profile?.minecraft_username || null,
             total: donor.total
           };
         });
@@ -297,7 +299,7 @@ const Index = () => {
       const userIds = orders.map(order => order.user_id);
       const { data: profiles } = await supabase
         .from('user_profiles')
-        .select('user_id, username')
+        .select('user_id, username, minecraft_username')
         .in('user_id', userIds);
 
       // Get order items and packages for these orders
@@ -317,6 +319,7 @@ const Index = () => {
         
         return {
           username: profile?.username || 'Unknown User',
+          minecraftUsername: profile?.minecraft_username || null,
           package: orderItem?.store_packages?.name || 'Unknown Package',
           date: order.created_at
         };
@@ -459,19 +462,32 @@ const Index = () => {
                             {/* Existing Comments */}
                             {comments[message.id]?.length > 0 ? (
                               comments[message.id].map(comment => (
-                                <div key={comment.id} className="flex gap-3">
-                                  <Avatar>
-                                    <AvatarImage src={comment.user_profiles.avatar_url} alt={comment.user_profiles.display_name} />
-                                    <AvatarFallback>{comment.user_profiles.display_name.charAt(0)}</AvatarFallback>
-                                  </Avatar>
-                                  <div className="flex-1">
-                                    <div className="flex justify-between">
-                                      <span className="font-semibold">{comment.user_profiles.display_name}</span>
-                                      <span className="text-xs text-muted-foreground">
-                                        {formatDate(comment.created_at)}
-                                      </span>
+                                <div key={comment.id} className="border rounded-lg p-4 bg-card">
+                                  <div className="flex gap-3">
+                                    <Avatar>
+                                      <AvatarImage src={comment.user_profiles?.avatar_url} />
+                                      <AvatarFallback>
+                                        {comment.user_profiles?.display_name?.charAt(0) || 
+                                         comment.user_profiles?.username?.charAt(0) || 'U'}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                    <div className="flex-1">
+                                      <div className="flex justify-between items-start mb-2">
+                                        <div className="flex items-center gap-2">
+                                          <span className="font-semibold">
+                                            {comment.user_profiles?.display_name || 
+                                             comment.user_profiles?.username || 'User'}
+                                          </span>
+                                        </div>
+                                        <span className="text-xs text-muted-foreground">
+                                          {formatDate(comment.created_at)}
+                                        </span>
+                                      </div>
+                                      
+                                      <div className="prose prose-sm max-w-none dark:prose-invert">
+                                        <p>{comment.content}</p>
+                                      </div>
                                     </div>
-                                    <p className="text-sm text-muted-foreground">{comment.content}</p>
                                   </div>
                                 </div>
                               ))
@@ -480,17 +496,32 @@ const Index = () => {
                             )}
 
                             {/* New Comment Form */}
-                            <div className="mt-4">
-                              <Textarea
-                                placeholder="Add a comment..."
-                                value={newComments[message.id] || ''}
-                                onChange={(e) => setNewComments(prev => ({ ...prev, [message.id]: e.target.value }))}
-                                className="resize-none"
-                              />
-                              <div className="flex justify-end gap-2 mt-2">
-                                <Button variant="secondary" onClick={() => createComment(message.id)}>Post Comment</Button>
+                            {user && (
+                              <div className="mt-4 p-4 border rounded-lg bg-card">
+                                <Textarea
+                                  placeholder="Add a comment..."
+                                  value={newComments[message.id] || ''}
+                                  onChange={(e) => setNewComments(prev => ({ ...prev, [message.id]: e.target.value }))}
+                                  className="resize-none min-h-[80px]"
+                                />
+                                <div className="flex justify-end gap-2 mt-3">
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm"
+                                    onClick={() => setNewComments(prev => ({ ...prev, [message.id]: '' }))}
+                                  >
+                                    Cancel
+                                  </Button>
+                                  <Button 
+                                    size="sm" 
+                                    onClick={() => createComment(message.id)}
+                                    disabled={!newComments[message.id]?.trim()}
+                                  >
+                                    Post Comment
+                                  </Button>
+                                </div>
                               </div>
-                            </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -559,9 +590,17 @@ const Index = () => {
                 <ul className="space-y-3 text-sm">
                   {topDonors.length > 0 ? (
                     topDonors.map((donor: any, index: number) => (
-                      <li key={index} className="flex items-center justify-between">
+                      <li key={index} className="flex items-center gap-3">
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage 
+                            src={getMinecraftPlayerHead(donor.minecraftUsername || donor.username, 32)} 
+                            alt={`${donor.username}'s Minecraft head`}
+                          />
+                          <AvatarFallback className="text-xs">
+                            #{index + 1}
+                          </AvatarFallback>
+                        </Avatar>
                         <span>#{index + 1} {donor.username}</span>
-                        <span>${donor.total.toFixed(2)} USD</span>
                       </li>
                     ))
                   ) : (
@@ -576,12 +615,23 @@ const Index = () => {
                 <CardTitle className="font-brand">Recent Purchases</CardTitle>
               </CardHeader>
               <CardContent>
-                <ul className="space-y-2 text-sm text-muted-foreground">
+                <ul className="space-y-3 text-sm">
                   {recentPurchases.length > 0 ? (
                     recentPurchases.map((purchase: any, index: number) => (
-                      <li key={index} className="flex items-center justify-between">
-                        <span>{purchase.username}</span>
-                        <span>{purchase.package}</span>
+                      <li key={index} className="flex items-center gap-3">
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage 
+                            src={getMinecraftPlayerHead(purchase.minecraftUsername || purchase.username, 32)} 
+                            alt={`${purchase.username}'s Minecraft head`}
+                          />
+                          <AvatarFallback className="text-xs">
+                            {purchase.username.charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-foreground truncate">{purchase.username}</div>
+                          <div className="text-muted-foreground text-xs truncate">{purchase.package}</div>
+                        </div>
                       </li>
                     ))
                   ) : (

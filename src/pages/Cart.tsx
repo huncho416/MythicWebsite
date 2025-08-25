@@ -22,6 +22,7 @@ export default function Cart() {
   const { 
     items, 
     totals, 
+    saleDiscount,
     loading, 
     updateQuantity, 
     removeItem, 
@@ -249,9 +250,16 @@ export default function Cart() {
                   <span>{formatPrice(totals.subtotal)}</span>
                 </div>
 
+                {saleDiscount > 0 && (
+                  <div className="flex justify-between text-orange-600">
+                    <span>Sale Savings</span>
+                    <span>-{formatPrice(saleDiscount)}</span>
+                  </div>
+                )}
+
                 {totals.discount > 0 && (
                   <div className="flex justify-between text-green-600">
-                    <span>Discount</span>
+                    <span>Coupon Discount</span>
                     <span>-{formatPrice(totals.discount)}</span>
                   </div>
                 )}

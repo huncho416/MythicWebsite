@@ -8,6 +8,11 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import Layout from "@/components/layout/Layout";
 import Store from "@/pages/Store";
+import Cart from "@/pages/Cart";
+import Checkout from "@/pages/Checkout";
+import PaymentMethod from "@/pages/PaymentMethod";
+import PaymentSuccess from "@/pages/PaymentSuccess";
+import PaymentProcessing from "@/pages/PaymentProcessing";
 import Forums from "@/pages/Forums";
 import ForumCategory from "@/pages/ForumCategory";
 import Support from "@/pages/Support";
@@ -54,6 +59,11 @@ const App = () => (
               <Route element={<Layout />}>
                 <Route path="/" element={<Index />} />
                 <Route path="/store" element={<Store />} />
+                <Route path="/cart" element={<Cart />} />
+                <Route path="/checkout" element={<Checkout />} />
+                <Route path="/payment" element={<PaymentMethod />} />
+                <Route path="/payment/success" element={<PaymentSuccess />} />
+                <Route path="/checkout/pay/:provider" element={<PaymentProcessing />} />
                 <Route path="/forums" element={<Forums />} />
                 <Route path="/forums/category/:categoryId" element={<ForumCategory />} />
                 <Route path="/forums/thread/:threadId" element={<Post />} />

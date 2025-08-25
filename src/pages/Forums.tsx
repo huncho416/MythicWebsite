@@ -219,10 +219,8 @@ export default function Forums() {
                               })}
                             </div>
                             <div className="text-xs text-muted-foreground">
-                              by {stats.lastActivity.last_replier?.display_name || 
-                                  stats.lastActivity.last_replier?.username ||
-                                  stats.lastActivity.user_profiles?.display_name || 
-                                  stats.lastActivity.user_profiles?.username || 
+                              by {stats.lastActivity.author?.display_name || 
+                                  stats.lastActivity.author?.username || 
                                   'Unknown'}
                             </div>
                           </div>

@@ -127,21 +127,33 @@ export default function Post() {
     
     setLoadingComments(true);
     try {
-      const { data, error } = await supabase
+      const { data: comments, error } = await supabase
         .from('home_message_comments')
-        .select(`
-          *,
-          user_profiles (
-            display_name,
-            username,
-            avatar_url
-          )
-        `)
+        .select('*')
         .eq('message_id', postId)
+        .eq('is_approved', true)
         .order('created_at', { ascending: true });
 
       if (error) throw error;
-      setComments(data || []);
+
+      // Get user profiles for comments
+      if (comments && comments.length > 0) {
+        const userIds = comments.map(comment => comment.author_id);
+        const { data: profiles } = await supabase
+          .from('user_profiles')
+          .select('user_id, display_name, username, avatar_url, minecraft_username')
+          .in('user_id', userIds);
+
+        // Combine comments with profile data
+        const commentsWithProfiles = comments.map(comment => ({
+          ...comment,
+          user_profiles: profiles?.find(p => p.user_id === comment.author_id)
+        }));
+
+        setComments(commentsWithProfiles);
+      } else {
+        setComments([]);
+      }
     } catch (error) {
       console.error('Error loading comments:', error);
     } finally {

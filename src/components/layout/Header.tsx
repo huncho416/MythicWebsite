@@ -1,6 +1,7 @@
 import { Link, NavLink } from "react-router-dom";
 const logo = "/favicon.png";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { 
   DropdownMenu, 
   DropdownMenuContent, 
@@ -11,6 +12,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { User } from "@supabase/supabase-js";
 import { User as UserIcon, LogOut, Home, ShoppingCart, MessageSquare, HelpCircle, Shield, Vote } from "lucide-react";
+import { useCart } from "@/hooks/use-cart";
 
 const navItems = [
   { to: "/", label: "Home", icon: Home },
@@ -24,6 +26,7 @@ export default function Header() {
   const [user, setUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<{ username?: string } | null>(null);
   const [hasAdminAccess, setHasAdminAccess] = useState(false);
+  const { items, totals } = useCart();
 
   useEffect(() => {
     // Get initial session
@@ -111,6 +114,23 @@ export default function Header() {
           })}
         </div>
         <div className="flex items-center gap-3">
+          {/* Cart Icon */}
+          <Button asChild variant="ghost" size="sm" className="relative">
+            <Link to="/cart" className="flex items-center gap-2" key={`cart-${items.length}-${totals.total}`}>
+              <ShoppingCart className="h-4 w-4" />
+              {items.length > 0 && (
+                <>
+                  <Badge variant="destructive" className="absolute -top-1 -right-1 h-5 w-5 p-0 text-xs flex items-center justify-center">
+                    {items.length}
+                  </Badge>
+                  <span className="hidden sm:inline text-sm">
+                    ${totals.total.toFixed(2)}
+                  </span>
+                </>
+              )}
+            </Link>
+          </Button>
+          
           {user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

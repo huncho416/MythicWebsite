@@ -209,6 +209,11 @@ export default function SettingsManagement() {
   };
 
   const handleSettingChange = (key: string, value: any) => {
+    // Handle special case for featured package selection
+    if (key === 'featured_package_id' && value === 'none') {
+      value = null;
+    }
+    
     setEditingSettings(prev => ({
       ...prev,
       [key]: value
@@ -261,14 +266,14 @@ export default function SettingsManagement() {
     if (setting.key === 'featured_package_id') {
       return (
         <Select 
-          value={value || ''} 
+          value={value || 'none'} 
           onValueChange={(selectedValue) => handleSettingChange(setting.key, selectedValue)}
         >
           <SelectTrigger>
             <SelectValue placeholder="Select featured package" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">No featured package</SelectItem>
+            <SelectItem value="none">No featured package</SelectItem>
             {packages.map((pkg) => (
               <SelectItem key={pkg.id} value={pkg.id}>
                 {pkg.name}

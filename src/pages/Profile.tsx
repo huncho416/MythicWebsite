@@ -700,43 +700,6 @@ export default function Profile() {
         <TabsContent value="security" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Change Password</CardTitle>
-              <CardDescription>Update your account password for better security</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="new_password">New Password</Label>
-                <Input
-                  id="new_password"
-                  type="password"
-                  value={passwordForm.new_password}
-                  onChange={(e) => setPasswordForm({...passwordForm, new_password: e.target.value})}
-                  placeholder="Enter new password"
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="confirm_password">Confirm New Password</Label>
-                <Input
-                  id="confirm_password"
-                  type="password"
-                  value={passwordForm.confirm_password}
-                  onChange={(e) => setPasswordForm({...passwordForm, confirm_password: e.target.value})}
-                  placeholder="Confirm new password"
-                />
-              </div>
-              
-              <Button 
-                onClick={changePassword} 
-                disabled={saving || !passwordForm.new_password || !passwordForm.confirm_password}
-              >
-                {saving ? "Updating..." : "Update Password"}
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
               <CardTitle>Privacy & Security Settings</CardTitle>
               <CardDescription>Manage your privacy and security preferences</CardDescription>
             </CardHeader>

@@ -28,6 +28,8 @@ import {
   Lock
 } from "lucide-react";
 import { validateEmail } from "@/lib/security";
+import { supabase } from "@/integrations/supabase/client";
+import { MinecraftUsernamePrompt } from "@/components/ui/minecraft-username-prompt";
 
 interface CustomerInfo {
   firstName: string;
@@ -66,8 +68,16 @@ export default function Checkout() {
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
+  const [showMinecraftPrompt, setShowMinecraftPrompt] = useState(false);
+  const [hasMinecraftUsername, setHasMinecraftUsername] = useState(false);
+  const [checkingAuth, setCheckingAuth] = useState(true);
 
   const canonical = typeof window !== 'undefined' ? window.location.origin + '/checkout' : '';
+
+  // Check if user has Minecraft username
+  useEffect(() => {
+    checkMinecraftUsername();
+  }, []);
 
   // Redirect if cart is empty
   useEffect(() => {
@@ -75,6 +85,43 @@ export default function Checkout() {
       navigate('/cart');
     }
   }, [loading, items.length, navigate]);
+
+  const checkMinecraftUsername = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        navigate('/login');
+        return;
+      }
+
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('minecraft_username')
+        .eq('user_id', user.id)
+        .single();
+
+      if (!profile?.minecraft_username) {
+        setShowMinecraftPrompt(true);
+        setHasMinecraftUsername(false);
+      } else {
+        setHasMinecraftUsername(true);
+      }
+    } catch (error) {
+      console.error('Error checking Minecraft username:', error);
+    } finally {
+      setCheckingAuth(false);
+    }
+  };
+
+  const handleMinecraftUsernameSet = (username: string) => {
+    setShowMinecraftPrompt(false);
+    setHasMinecraftUsername(true);
+    toast({
+      title: "Success",
+      description: "You can now proceed with your purchase!",
+    });
+  };
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -130,7 +177,7 @@ export default function Checkout() {
       localStorage.setItem('checkout_customer_info', JSON.stringify(customerInfo));
       
       // Navigate to payment selection
-      navigate('/checkout/payment');
+      navigate('/payment');
     } catch (error) {
       console.error('Error proceeding to payment:', error);
       toast({
@@ -176,7 +223,7 @@ export default function Checkout() {
     }
   };
 
-  if (loading) {
+  if (loading || checkingAuth) {
     return (
       <div className="container mx-auto py-12">
         <Helmet>
@@ -205,6 +252,27 @@ export default function Checkout() {
       <div className="grid lg:grid-cols-3 gap-8">
         {/* Customer Information Form */}
         <div className="lg:col-span-2">
+          {!hasMinecraftUsername && !showMinecraftPrompt && (
+            <div className="mb-6 p-4 bg-yellow-100 border border-yellow-300 rounded-lg">
+              <div className="flex items-center gap-2">
+                <div className="h-4 w-4 bg-yellow-500 rounded-full" />
+                <p className="text-yellow-800 font-medium">
+                  Minecraft Username Required
+                </p>
+              </div>
+              <p className="text-yellow-700 text-sm mt-1">
+                You need to set your Minecraft username before making a purchase. 
+                <button 
+                  className="underline ml-1"
+                  onClick={() => setShowMinecraftPrompt(true)}
+                  type="button"
+                >
+                  Click here to set it now
+                </button>
+              </p>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Personal Information */}
             <Card>
@@ -409,10 +477,12 @@ export default function Checkout() {
               </Button>
               <Button
                 type="submit"
-                disabled={submitting}
+                disabled={submitting || !hasMinecraftUsername}
                 className="flex-1"
               >
-                {submitting ? "Processing..." : "Continue to Payment"}
+                {submitting ? "Processing..." : 
+                 !hasMinecraftUsername ? "Minecraft Username Required" : 
+                 "Continue to Payment"}
                 <Lock className="h-4 w-4 ml-2" />
               </Button>
             </div>
@@ -520,6 +590,12 @@ export default function Checkout() {
           </Card>
         </div>
       </div>
+
+      {/* Minecraft Username Prompt */}
+      <MinecraftUsernamePrompt 
+        open={showMinecraftPrompt} 
+        onUsernameSet={handleMinecraftUsernameSet}
+      />
     </div>
   );
 }

@@ -17,7 +17,6 @@ import { PaymentConfigService } from '@/lib/payment-config';
 
 type StorePackage = Tables<'store_packages'>;
 type StoreCategory = Tables<'store_categories'>;
-type StoreCoupon = Tables<'coupons'>;
 
 interface PaymentConfig {
   id?: string;
@@ -47,28 +46,6 @@ interface PackageForm {
   image_url: string | null;
   duration_days: number | null;
   sort_order: number;
-}
-
-interface CouponForm {
-  code: string;
-  type: 'percent' | 'fixed';
-  value: number;
-  min_subtotal: number | null;
-  allowed_product_ids: string[] | null;
-  allowed_category_ids: string[] | null;
-  starts_at: string | null;
-  ends_at: string | null;
-  max_global_uses: number | null;
-  max_per_user: number;
-  active: boolean;
-}
-
-interface StoreSaleSettings {
-  enabled: boolean;
-  percentage: number;
-  start_date: string | null;
-  end_date: string | null;
-  message: string;
 }
 
 const defaultPackageForm: PackageForm = {
@@ -118,39 +95,10 @@ export default function EnhancedStoreManagement() {
     config: {}
   });
 
-  // Coupon management state
-  const [coupons, setCoupons] = useState<StoreCoupon[]>([]);
-  const [showCouponDialog, setShowCouponDialog] = useState(false);
-  const [editingCoupon, setEditingCoupon] = useState<StoreCoupon | null>(null);
-  const [couponForm, setCouponForm] = useState<CouponForm>({
-    code: '',
-    type: 'percent',
-    value: 0,
-    min_subtotal: null,
-    allowed_product_ids: null,
-    allowed_category_ids: null,
-    starts_at: null,
-    ends_at: null,
-    max_global_uses: null,
-    max_per_user: 1,
-    active: true
-  });
-
-  // Store sale settings state
-  const [saleSettings, setSaleSettings] = useState<StoreSaleSettings>({
-    enabled: false,
-    percentage: 0,
-    start_date: null,
-    end_date: null,
-    message: ''
-  });
-
   useEffect(() => {
     loadPackages();
     loadCategories();
     loadPaymentConfigs();
-    loadCoupons();
-    loadSaleSettings();
   }, []);
 
   const loadPackages = async () => {
@@ -191,25 +139,6 @@ export default function EnhancedStoreManagement() {
     }
   };
 
-  const loadCoupons = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('coupons')
-        .select('*')
-        .order('code', { ascending: true });
-
-      if (error) throw error;
-      setCoupons(data || []);
-    } catch (error) {
-      console.error('Error loading coupons:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load coupons",
-        variant: "destructive",
-      });
-    }
-  };
-
   const loadPaymentConfigs = async () => {
     try {
       console.log('Loading payment configurations...');
@@ -241,58 +170,13 @@ export default function EnhancedStoreManagement() {
     }
   };
 
-  const loadSaleSettings = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('store_settings')
-        .select('*')
-        .eq('key', 'global_sale')
-        .maybeSingle();
-
-      if (error) {
-        console.error('Error loading sale settings:', error);
-        throw error;
-      }
-      
-      if (data && data.value) {
-        const saleData = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
-        setSaleSettings({
-          enabled: saleData.enabled || false,
-          percentage: saleData.percentage || 0,
-          start_date: saleData.start_date || null,
-          end_date: saleData.end_date || null,
-          message: saleData.message || ''
-        });
-      } else {
-        // Set default values if no record exists
-        setSaleSettings({
-          enabled: false,
-          percentage: 0,
-          start_date: null,
-          end_date: null,
-          message: ''
-        });
-      }
-    } catch (error) {
-      console.error('Error loading sale settings:', error);
-      // Set default values on error
-      setSaleSettings({
-        enabled: false,
-        percentage: 0,
-        start_date: null,
-        end_date: null,
-        message: ''
-      });
-    }
-  };
-
   const openPackageDialog = (pkg?: StorePackage) => {
     if (pkg) {
       setEditingPackage(pkg);
       setPackageForm({
         name: pkg.name,
         description: pkg.description || '',
-        price: pkg.price || 0,
+        price: pkg.price,
         sale_price: pkg.sale_price,
         category_id: pkg.category_id || '',
         is_featured: pkg.is_featured || false,
@@ -576,164 +460,6 @@ export default function EnhancedStoreManagement() {
     }
   };
 
-  const openCouponDialog = (coupon?: StoreCoupon) => {
-    if (coupon) {
-      setEditingCoupon(coupon);
-      setCouponForm({
-        code: coupon.code,
-        type: coupon.type,
-        value: coupon.value || 0,
-        min_subtotal: coupon.min_subtotal,
-        allowed_product_ids: coupon.allowed_product_ids,
-        allowed_category_ids: coupon.allowed_category_ids,
-        starts_at: coupon.starts_at ? coupon.starts_at.split('T')[0] : null,
-        ends_at: coupon.ends_at ? coupon.ends_at.split('T')[0] : null,
-        max_global_uses: coupon.max_global_uses,
-        max_per_user: coupon.max_per_user || 1,
-        active: coupon.active,
-      });
-    } else {
-      setEditingCoupon(null);
-      setCouponForm({
-        code: '',
-        type: 'percent',
-        value: 0,
-        min_subtotal: null,
-        allowed_product_ids: null,
-        allowed_category_ids: null,
-        starts_at: null,
-        ends_at: null,
-        max_global_uses: null,
-        max_per_user: 1,
-        active: true,
-      });
-    }
-    setShowCouponDialog(true);
-  };
-
-  const saveCoupon = async () => {
-    setLoading(true);
-    try {
-      const couponData = {
-        ...couponForm,
-        starts_at: couponForm.starts_at ? new Date(couponForm.starts_at).toISOString() : null,
-        ends_at: couponForm.ends_at ? new Date(couponForm.ends_at).toISOString() : null,
-        updated_at: new Date().toISOString(),
-      };
-
-      let error;
-      if (editingCoupon) {
-        ({ error } = await supabase
-          .from('coupons')
-          .update(couponData)
-          .eq('id', editingCoupon.id));
-      } else {
-        ({ error } = await supabase
-          .from('coupons')
-          .insert([{
-            ...couponData,
-            created_at: new Date().toISOString(),
-          }]));
-      }
-
-      if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: `Coupon ${editingCoupon ? 'updated' : 'created'} successfully`,
-      });
-
-      setShowCouponDialog(false);
-      loadCoupons();
-    } catch (error) {
-      console.error('Error saving coupon:', error);
-      toast({
-        title: "Error",
-        description: "Failed to save coupon",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const deleteCoupon = async (couponId: string) => {
-    if (!confirm('Are you sure you want to delete this coupon? This action cannot be undone.')) {
-      return;
-    }
-
-    try {
-      const { error } = await supabase
-        .from('coupons')
-        .delete()
-        .eq('id', couponId);
-
-      if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: "Coupon deleted successfully",
-      });
-
-      loadCoupons();
-    } catch (error) {
-      console.error('Error deleting coupon:', error);
-      toast({
-        title: "Error",
-        description: "Failed to delete coupon",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const saveSaleSettings = async () => {
-    setLoading(true);
-    try {
-      const saleData = {
-        enabled: saleSettings.enabled,
-        percentage: saleSettings.percentage,
-        start_date: saleSettings.start_date ? new Date(saleSettings.start_date).toISOString() : null,
-        end_date: saleSettings.end_date ? new Date(saleSettings.end_date).toISOString() : null,
-        message: saleSettings.message,
-      };
-
-      console.log('Saving sale settings:', saleData);
-
-      const { error } = await supabase
-        .from('store_settings')
-        .upsert([{
-          key: 'global_sale',
-          value: saleData,
-          category: 'store',
-          updated_at: new Date().toISOString(),
-        }], {
-          onConflict: 'key'
-        });
-
-      if (error) {
-        console.error('Supabase error:', error);
-        throw error;
-      }
-
-      toast({
-        title: "Success",
-        description: "Sale settings saved successfully",
-      });
-
-      // Reload to verify the save worked
-      loadSaleSettings();
-    } catch (error) {
-      console.error('Error saving sale settings:', error);
-      toast({
-        title: "Error",
-        description: "Failed to save sale settings",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -755,8 +481,7 @@ export default function EnhancedStoreManagement() {
           <TabsTrigger value="packages">Packages</TabsTrigger>
           <TabsTrigger value="categories">Categories</TabsTrigger>
           <TabsTrigger value="payments">Payment Settings</TabsTrigger>
-          <TabsTrigger value="coupons">Coupons</TabsTrigger>
-          <TabsTrigger value="sale">Sale</TabsTrigger>
+          <TabsTrigger value="orders">Orders</TabsTrigger>
         </TabsList>
 
         <TabsContent value="packages">
@@ -857,85 +582,6 @@ export default function EnhancedStoreManagement() {
                   )}
                 </Card>
               ))}
-            </div>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="categories">
-          <div className="space-y-4">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-semibold">Store Categories</h2>
-              <Button
-                onClick={() => openCategoryDialog()}
-                className="flex items-center gap-2"
-              >
-                <Plus className="h-4 w-4" />
-                Add Category
-              </Button>
-            </div>
-
-            <div className="grid gap-4">
-              {categories.map((category) => (
-                <Card key={category.id} className="hover:shadow-md transition-shadow">
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div 
-                          className="w-12 h-12 rounded-lg flex items-center justify-center text-white font-bold"
-                          style={{ backgroundColor: category.color || '#6366f1' }}
-                        >
-                          {category.name.substring(0, 2).toUpperCase()}
-                        </div>
-                        <div>
-                          <CardTitle className="flex items-center gap-2">
-                            {category.name}
-                            {!category.is_active && (
-                              <Badge variant="outline">Hidden</Badge>
-                            )}
-                          </CardTitle>
-                          <p className="text-sm text-gray-600 mt-1">{category.description}</p>
-                          <div className="flex items-center gap-2 mt-2">
-                            {category.slug && (
-                              <Badge variant="outline">/{category.slug}</Badge>
-                            )}
-                            {category.icon && (
-                              <Badge variant="outline">{category.icon}</Badge>
-                            )}
-                            <Badge variant="outline">
-                              Sort: {category.sort_order}
-                            </Badge>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => openCategoryDialog(category)}
-                        >
-                          <Edit2 className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => deleteCategory(category.id)}
-                          className="text-red-600 hover:text-red-700"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardHeader>
-                </Card>
-              ))}
-              
-              {categories.length === 0 && (
-                <div className="text-center py-8 text-gray-500">
-                  <Package className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                  <p className="text-lg font-medium mb-2">No categories found</p>
-                  <p className="text-sm">Create your first category to organize store packages.</p>
-                </div>
-              )}
             </div>
           </div>
         </TabsContent>
@@ -1048,46 +694,56 @@ export default function EnhancedStoreManagement() {
           </div>
         </TabsContent>
 
-        <TabsContent value="coupons">
+        <TabsContent value="orders">
+          <div className="space-y-4">
+            <h2 className="text-2xl font-semibold">Order Management</h2>
+            <div className="text-center py-8 text-gray-500">
+              Order management interface will be implemented here.
+              This will show recent orders, payment status, and command execution logs.
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="categories">
           <div className="space-y-4">
             <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-semibold">Discount Coupons</h2>
+              <h2 className="text-2xl font-semibold">Store Categories</h2>
               <Button
-                onClick={() => openCouponDialog()}
+                onClick={() => openCategoryDialog()}
                 className="flex items-center gap-2"
               >
                 <Plus className="h-4 w-4" />
-                Add Coupon
+                Add Category
               </Button>
             </div>
 
             <div className="grid gap-4">
-              {coupons.map((coupon) => (
-                <Card key={coupon.id} className="hover:shadow-md transition-shadow">
+              {categories.map((category) => (
+                <Card key={category.id} className="hover:shadow-md transition-shadow">
                   <CardHeader>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <div className="flex-shrink-0">
-                          <Badge variant="outline" className="text-lg font-bold">
-                            {coupon.type === 'percent' ? '%' : '$'}
-                          </Badge>
-                        </div>
+                        <div 
+                          className="w-4 h-4 rounded"
+                          style={{ backgroundColor: category.color || '#6366f1' }}
+                        />
                         <div>
-                          <CardTitle className="text-lg">{coupon.code}</CardTitle>
-                          <p className="text-sm text-gray-600 mt-1">
-                            {coupon.active ? 'Active' : 'Inactive'}
-                          </p>
+                          <CardTitle className="text-lg">{category.name}</CardTitle>
+                          {category.description && (
+                            <p className="text-sm text-gray-600 mt-1">{category.description}</p>
+                          )}
                           <div className="flex items-center gap-2 mt-2">
-                            {coupon.min_subtotal !== null && (
+                            {category.slug && (
+                              <Badge variant="outline">/{category.slug}</Badge>
+                            )}
+                            {category.icon && (
                               <Badge variant="outline">
-                                Min. Subtotal: {formatPrice(coupon.min_subtotal)}
+                                {category.icon}
                               </Badge>
                             )}
-                            {coupon.starts_at && coupon.ends_at && (
-                              <Badge variant="outline">
-                                Valid: {new Date(coupon.starts_at).toLocaleDateString()} - {new Date(coupon.ends_at).toLocaleDateString()}
-                              </Badge>
-                            )}
+                            <Badge variant={category.is_active ? "default" : "secondary"}>
+                              {category.is_active ? "Active" : "Inactive"}
+                            </Badge>
                           </div>
                         </div>
                       </div>
@@ -1095,14 +751,14 @@ export default function EnhancedStoreManagement() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => openCouponDialog(coupon)}
+                          onClick={() => openCategoryDialog(category)}
                         >
                           <Edit2 className="h-4 w-4" />
                         </Button>
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => deleteCoupon(coupon.id)}
+                          onClick={() => deleteCategory(category.id)}
                           className="text-red-600 hover:text-red-700"
                         >
                           <Trash2 className="h-4 w-4" />
@@ -1113,94 +769,6 @@ export default function EnhancedStoreManagement() {
                 </Card>
               ))}
             </div>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="sale">
-          <div className="space-y-6">
-            <h2 className="text-2xl font-semibold">Store Sale Settings</h2>
-            
-            <Card>
-              <CardHeader>
-                <CardTitle>Current Sale Settings</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="saleEnabled">Enable Sale</Label>
-                    <Switch
-                      id="saleEnabled"
-                      checked={saleSettings.enabled}
-                      onCheckedChange={(enabled) => setSaleSettings({...saleSettings, enabled})}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="salePercentage">Discount Percentage</Label>
-                    <Input
-                      id="salePercentage"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      max="100"
-                      value={saleSettings.percentage || ''}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        const numValue = value === '' ? 0 : parseFloat(value);
-                        setSaleSettings({
-                          ...saleSettings, 
-                          percentage: isNaN(numValue) ? 0 : numValue
-                        });
-                      }}
-                      disabled={!saleSettings.enabled}
-                      placeholder="0"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 mt-4">
-                  <div>
-                    <Label htmlFor="saleStartDate">Sale Start Date</Label>
-                    <Input
-                      id="saleStartDate"
-                      type="date"
-                      value={saleSettings.start_date ? saleSettings.start_date.split('T')[0] : ''}
-                      onChange={(e) => setSaleSettings({...saleSettings, start_date: e.target.value})}
-                      disabled={!saleSettings.enabled}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="saleEndDate">Sale End Date</Label>
-                    <Input
-                      id="saleEndDate"
-                      type="date"
-                      value={saleSettings.end_date ? saleSettings.end_date.split('T')[0] : ''}
-                      onChange={(e) => setSaleSettings({...saleSettings, end_date: e.target.value})}
-                      disabled={!saleSettings.enabled}
-                    />
-                  </div>
-                </div>
-
-                <div className="mt-4">
-                  <Label htmlFor="saleMessage">Sale Message</Label>
-                  <Textarea
-                    id="saleMessage"
-                    value={saleSettings.message}
-                    onChange={(e) => setSaleSettings({...saleSettings, message: e.target.value})}
-                    placeholder="Optional message to display during the sale"
-                    rows={3}
-                    disabled={!saleSettings.enabled}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Button
-              onClick={saveSaleSettings}
-              disabled={loading}
-              className="w-full"
-            >
-              Save Sale Settings
-            </Button>
           </div>
         </TabsContent>
       </Tabs>
@@ -1308,17 +876,8 @@ export default function EnhancedStoreManagement() {
                   id="packagePrice"
                   type="number"
                   step="0.01"
-                  min="0"
-                  value={packageForm.price || ''}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    const numValue = value === '' ? 0 : parseFloat(value);
-                    setPackageForm({
-                      ...packageForm, 
-                      price: isNaN(numValue) ? 0 : numValue
-                    });
-                  }}
-                  placeholder="0.00"
+                  value={packageForm.price}
+                  onChange={(e) => setPackageForm({...packageForm, price: parseFloat(e.target.value) || 0})}
                 />
               </div>
               <div>
@@ -1328,18 +887,10 @@ export default function EnhancedStoreManagement() {
                   type="number"
                   step="0.01"
                   value={packageForm.sale_price || ''}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    if (value === '') {
-                      setPackageForm({...packageForm, sale_price: null});
-                    } else {
-                      const numValue = parseFloat(value);
-                      setPackageForm({
-                        ...packageForm, 
-                        sale_price: isNaN(numValue) ? null : numValue
-                      });
-                    }
-                  }}
+                  onChange={(e) => setPackageForm({
+                    ...packageForm, 
+                    sale_price: e.target.value ? parseFloat(e.target.value) : null
+                  })}
                   placeholder="Optional"
                 />
               </div>
@@ -1468,11 +1019,7 @@ export default function EnhancedStoreManagement() {
                   id="categorySortOrder"
                   type="number"
                   value={categoryForm.sort_order}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    const numValue = value === '' ? 0 : parseInt(value) || 0;
-                    setCategoryForm({...categoryForm, sort_order: numValue});
-                  }}
+                  onChange={(e) => setCategoryForm({...categoryForm, sort_order: parseInt(e.target.value)})}
                 />
               </div>
             </div>
@@ -1500,171 +1047,6 @@ export default function EnhancedStoreManagement() {
                 disabled={loading || !categoryForm.name}
               >
                 {editingCategory ? 'Update Category' : 'Create Category'}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Coupon Dialog */}
-      <Dialog open={showCouponDialog} onOpenChange={setShowCouponDialog}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              {editingCoupon ? 'Edit Coupon' : 'Create Coupon'}
-            </DialogTitle>
-            <DialogDescription>
-              {editingCoupon ? 'Modify the coupon details below.' : 'Create a new discount coupon for the store.'}
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-6">
-            <div>
-              <Label htmlFor="couponCode">Coupon Code</Label>
-              <Input
-                id="couponCode"
-                value={couponForm.code}
-                onChange={(e) => setCouponForm({...couponForm, code: e.target.value})}
-                placeholder="e.g., SPRINGSALE"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="couponType">Discount Type</Label>
-                <Select
-                  id="couponType"
-                  value={couponForm.type}
-                  onValueChange={(value) => setCouponForm({...couponForm, type: value})}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="percent">Percentage</SelectItem>
-                    <SelectItem value="fixed">Fixed Amount</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="couponValue">Discount Value</Label>
-                <Input
-                  id="couponValue"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={couponForm.value || ''}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    const numValue = value === '' ? 0 : parseFloat(value);
-                    setCouponForm({
-                      ...couponForm, 
-                      value: isNaN(numValue) ? 0 : numValue
-                    });
-                  }}
-                  placeholder="0"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="couponMinSubtotal">Min. Subtotal</Label>
-                <Input
-                  id="couponMinSubtotal"
-                  type="number"
-                  step="0.01"
-                  value={couponForm.min_subtotal || ''}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    if (value === '') {
-                      setCouponForm({...couponForm, min_subtotal: null});
-                    } else {
-                      const numValue = parseFloat(value);
-                      setCouponForm({
-                        ...couponForm, 
-                        min_subtotal: isNaN(numValue) ? null : numValue
-                      });
-                    }
-                  }}
-                  placeholder="Optional"
-                />
-              </div>
-              <div>
-                <Label htmlFor="couponMaxGlobalUses">Max. Global Uses</Label>
-                <Input
-                  id="couponMaxGlobalUses"
-                  type="number"
-                  value={couponForm.max_global_uses || ''}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setCouponForm({
-                      ...couponForm, 
-                      max_global_uses: value ? (parseInt(value) || null) : null
-                    });
-                  }}
-                  placeholder="Optional"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="couponMaxPerUser">Max. Uses Per User</Label>
-                <Input
-                  id="couponMaxPerUser"
-                  type="number"
-                  value={couponForm.max_per_user}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    const numValue = value === '' ? 1 : parseInt(value) || 1;
-                    setCouponForm({...couponForm, max_per_user: numValue});
-                  }}
-                />
-              </div>
-              <div>
-                <Label htmlFor="couponStartsAt">Starts At</Label>
-                <Input
-                  id="couponStartsAt"
-                  type="date"
-                  value={couponForm.starts_at ? couponForm.starts_at.split('T')[0] : ''}
-                  onChange={(e) => setCouponForm({...couponForm, starts_at: e.target.value})}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="couponEndsAt">Ends At</Label>
-                <Input
-                  id="couponEndsAt"
-                  type="date"
-                  value={couponForm.ends_at ? couponForm.ends_at.split('T')[0] : ''}
-                  onChange={(e) => setCouponForm({...couponForm, ends_at: e.target.value})}
-                />
-              </div>
-              <div>
-                <Label htmlFor="couponActive">Active</Label>
-                <Switch
-                  id="couponActive"
-                  checked={couponForm.active}
-                  onCheckedChange={(checked) => setCouponForm({...couponForm, active: checked})}
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setShowCouponDialog(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={saveCoupon}
-                disabled={loading || !couponForm.code || !couponForm.type}
-              >
-                {editingCoupon ? 'Update Coupon' : 'Create Coupon'}
               </Button>
             </div>
           </div>

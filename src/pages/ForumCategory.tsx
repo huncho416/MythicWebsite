@@ -5,8 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -23,6 +24,7 @@ interface ForumThread extends Tables<'forum_threads'> {
     username: string | null;
     avatar_url: string | null;
   } | null;
+  tags?: any[];
 }
 
 export default function ForumCategory() {
@@ -41,12 +43,23 @@ export default function ForumCategory() {
     content: ""
   });
   
+  // Tag management state
+  const [availableTags, setAvailableTags] = useState<any[]>([]);
+  const [threadTags, setThreadTags] = useState<any[]>([]);
+  
   const { toast } = useToast();
   const canonical = typeof window !== 'undefined' ? window.location.origin + `/forums/category/${categoryId}` : '';
 
   useEffect(() => {
     checkAuth();
+    loadAvailableTags();
   }, []);
+
+  useEffect(() => {
+    if (selectedThread) {
+      loadThreadTags(selectedThread.id);
+    }
+  }, [selectedThread]);
 
   useEffect(() => {
     if (categoryId) {
@@ -110,7 +123,7 @@ export default function ForumCategory() {
 
       if (error) throw error;
       
-      // Get author information for each thread
+      // Get author information and tags for each thread
       const threadsWithAuthors = await Promise.all(
         (data || []).map(async (thread) => {
           const { data: authorData } = await supabase
@@ -119,6 +132,15 @@ export default function ForumCategory() {
             .eq('user_id', thread.author_id)
             .single();
 
+          // Get thread tags
+          const { data: threadTagsData } = await supabase
+            .from('forum_thread_tag_assignments')
+            .select(`
+              *,
+              forum_thread_tags (*)
+            `)
+            .eq('thread_id', thread.id);
+
           return {
             ...thread,
             author: authorData ? {
@@ -126,7 +148,8 @@ export default function ForumCategory() {
               display_name: authorData.display_name,
               username: authorData.username,
               avatar_url: authorData.avatar_url
-            } : null
+            } : null,
+            tags: threadTagsData || []
           };
         })
       );
@@ -213,6 +236,87 @@ export default function ForumCategory() {
   const toggleThreadLock = (threadId: string, isLocked: boolean, e: React.MouseEvent) => {
     e.stopPropagation();
     updateThreadTags(threadId, { is_locked: !isLocked });
+  };
+
+  // Tag management functions
+  const loadAvailableTags = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('forum_thread_tags')
+        .select('*')
+        .order('is_system', { ascending: false });
+
+      if (error) throw error;
+      setAvailableTags(data || []);
+    } catch (error) {
+      console.error('Error loading tags:', error);
+    }
+  };
+
+  const loadThreadTags = async (threadId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('forum_thread_tag_assignments')
+        .select(`
+          *,
+          forum_thread_tags (*)
+        `)
+        .eq('thread_id', threadId);
+
+      if (error) throw error;
+      setThreadTags(data || []);
+    } catch (error) {
+      console.error('Error loading thread tags:', error);
+    }
+  };
+
+  const toggleThreadTag = async (threadId: string, tagId: string) => {
+    try {
+      // Check if tag is already assigned
+      const { data: existing } = await supabase
+        .from('forum_thread_tag_assignments')
+        .select('id')
+        .eq('thread_id', threadId)
+        .eq('tag_id', tagId)
+        .maybeSingle();
+
+      if (existing) {
+        // Remove tag
+        const { error } = await supabase
+          .from('forum_thread_tag_assignments')
+          .delete()
+          .eq('id', existing.id);
+
+        if (error) throw error;
+      } else {
+        // Add tag
+        const { error } = await supabase
+          .from('forum_thread_tag_assignments')
+          .insert({
+            thread_id: threadId,
+            tag_id: tagId
+          });
+
+        if (error) throw error;
+      }
+
+      // Reload thread tags
+      if (selectedThread) {
+        loadThreadTags(selectedThread.id);
+      }
+
+      toast({
+        title: "Success",
+        description: existing ? "Tag removed" : "Tag added"
+      });
+    } catch (error) {
+      console.error('Error toggling thread tag:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update tag",
+        variant: "destructive"
+      });
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -307,6 +411,9 @@ export default function ForumCategory() {
             <DialogContent className="max-w-2xl">
               <DialogHeader>
                 <DialogTitle>Create New Thread</DialogTitle>
+                <DialogDescription>
+                  Create a new discussion thread in this forum category.
+                </DialogDescription>
               </DialogHeader>
               <form onSubmit={handleCreateThread} className="space-y-4">
                 <div className="space-y-2">
@@ -392,6 +499,50 @@ export default function ForumCategory() {
                           <h3 className="text-lg font-semibold hover:text-accent transition-colors mb-1">
                             {thread.title}
                           </h3>
+
+                          {/* Thread Tags - Display at the top */}
+                          {(thread.tags && thread.tags.length > 0) || thread.is_pinned || thread.is_locked || (thread as any).is_important ? (
+                            <div className="flex items-center gap-2 mb-3">
+                              {/* System tags */}
+                              {thread.is_pinned && (
+                                <Badge variant="secondary" className="text-xs bg-yellow-100 text-yellow-800">
+                                  📌 Pinned
+                                </Badge>
+                              )}
+                              {thread.is_locked && (
+                                <Badge variant="secondary" className="text-xs bg-red-100 text-red-800">
+                                  🔒 Locked
+                                </Badge>
+                              )}
+                              {(thread as any).is_important && (
+                                <Badge variant="secondary" className="text-xs bg-red-100 text-red-800">
+                                  ❗ Important
+                                </Badge>
+                              )}
+                              
+                              {/* Custom tags */}
+                              {thread.tags?.map((tagAssignment: any) => {
+                                const tag = tagAssignment.forum_thread_tags;
+                                if (!tag || tag.is_system) return null;
+                                
+                                return (
+                                  <Badge 
+                                    key={tag.id}
+                                    variant="outline"
+                                    className="text-xs"
+                                    style={{ 
+                                      backgroundColor: tag.color + '20', 
+                                      color: tag.color, 
+                                      borderColor: tag.color 
+                                    }}
+                                  >
+                                    {tag.icon && <span className="mr-1">{tag.icon}</span>}
+                                    {tag.name}
+                                  </Badge>
+                                );
+                              })}
+                            </div>
+                          ) : null}
                           
                           <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
                             {thread.content}
@@ -493,6 +644,9 @@ export default function ForumCategory() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit Thread Settings</DialogTitle>
+            <DialogDescription>
+              Modify thread settings and permissions.
+            </DialogDescription>
           </DialogHeader>
           {selectedThread && (
             <div className="space-y-4">
@@ -536,6 +690,49 @@ export default function ForumCategory() {
                     <AlertTriangle className="h-4 w-4" />
                     Important
                   </Label>
+                </div>
+              </div>
+
+              {/* Custom Tags Section */}
+              <div className="space-y-3">
+                <h4 className="font-medium">Custom Tags</h4>
+                <div className="space-y-2">
+                  {availableTags.filter(tag => !tag.is_system).map((tag) => {
+                    const isAssigned = threadTags.some(assignment => 
+                      assignment.forum_thread_tags?.id === tag.id
+                    );
+                    
+                    return (
+                      <div key={tag.id} className="flex items-center space-x-2">
+                        <Checkbox 
+                          id={`tag-${tag.id}`}
+                          checked={isAssigned}
+                          onCheckedChange={() => toggleThreadTag(selectedThread.id, tag.id)}
+                        />
+                        <Label 
+                          htmlFor={`tag-${tag.id}`} 
+                          className="flex items-center gap-2"
+                        >
+                          <span style={{ color: tag.color }}>{tag.icon}</span>
+                          <Badge 
+                            variant="outline"
+                            style={{ 
+                              backgroundColor: tag.color + '20', 
+                              color: tag.color, 
+                              borderColor: tag.color 
+                            }}
+                          >
+                            {tag.name}
+                          </Badge>
+                        </Label>
+                      </div>
+                    );
+                  })}
+                  {availableTags.filter(tag => !tag.is_system).length === 0 && (
+                    <p className="text-sm text-muted-foreground">
+                      No custom tags available. Create tags in the admin panel.
+                    </p>
+                  )}
                 </div>
               </div>
               

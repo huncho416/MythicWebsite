@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { PaymentSuccessModal } from "@/components/ui/payment-success-modal";
 import { 
   CreditCard, 
   ArrowLeft, 
@@ -53,6 +54,8 @@ export default function PaymentMethod() {
   const [selectedProvider, setSelectedProvider] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successOrder, setSuccessOrder] = useState<{ orderNumber: string; total: number } | null>(null);
 
   const canonical = typeof window !== 'undefined' ? window.location.origin + '/checkout/payment' : '';
 
@@ -169,14 +172,28 @@ export default function PaymentMethod() {
     setCreating(true);
     
     try {
+      // Get the current user
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError || !user) {
+        throw new Error('You must be logged in to create an order');
+      }
+
+      // Generate a unique order number
+      const orderNumber = `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
       // Create order with pending status
       const orderData = {
+        user_id: user.id,
+        order_number: orderNumber,
         subtotal: totals.subtotal,
         discount_total: totals.discount,
         tax_total: totals.tax,
         fee_total: totals.fees,
         total: totals.total,
-        status: 'awaiting_payment',
+        total_amount: totals.total,
+        final_amount: totals.total,
+        status: 'pending' as const,
         billing_name: `${customerInfo.firstName} ${customerInfo.lastName}`,
         billing_email: customerInfo.email,
         billing_address: customerInfo.address,
@@ -198,7 +215,7 @@ export default function PaymentMethod() {
         order_id: order.id,
         package_id: item.product_id,
         quantity: item.quantity,
-        price: item.unit_price,
+        unit_price: item.unit_price,
         total_price: item.quantity * item.unit_price
       }));
 
@@ -212,12 +229,17 @@ export default function PaymentMethod() {
       localStorage.setItem('pending_order', JSON.stringify({
         orderId: order.id,
         orderNumber: order.order_number,
-        total: order.total,
+        total: order.final_amount,
         provider: selectedProvider
       }));
 
-      // Navigate to payment processing
+      // Option 1: Navigate to payment processing page (current implementation)
       navigate(`/checkout/pay/${selectedProvider}?order=${order.id}`);
+      
+      // Option 2: Show success modal directly (uncomment to use instead of navigation)
+      // setSuccessOrder({ orderNumber: order.order_number, total: order.final_amount });
+      // setShowSuccessModal(true);
+      
       
     } catch (error) {
       console.error('Error creating order:', error);
@@ -236,6 +258,21 @@ export default function PaymentMethod() {
       style: 'currency',
       currency: 'USD',
     }).format(price);
+  };
+
+  const handleSuccessModalClose = () => {
+    setShowSuccessModal(false);
+    setSuccessOrder(null);
+  };
+
+  const handleContinueShopping = () => {
+    handleSuccessModalClose();
+    navigate('/store');
+  };
+
+  const handleGoHome = () => {
+    handleSuccessModalClose();
+    navigate('/');
   };
 
   const calculateProviderFee = (provider: PaymentProvider) => {
@@ -447,6 +484,18 @@ export default function PaymentMethod() {
           </Card>
         </div>
       </div>
+
+      {/* Success Modal */}
+      {successOrder && (
+        <PaymentSuccessModal
+          isOpen={showSuccessModal}
+          onClose={handleSuccessModalClose}
+          orderNumber={successOrder.orderNumber}
+          total={successOrder.total}
+          onContinueShopping={handleContinueShopping}
+          onGoHome={handleGoHome}
+        />
+      )}
     </div>
   );
 }

@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { 
@@ -429,6 +429,9 @@ const OrderManagement: React.FC = () => {
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Order Details - {selectedOrder?.order_number}</DialogTitle>
+            <DialogDescription>
+              View and manage order information, items, payments, and command execution logs.
+            </DialogDescription>
           </DialogHeader>
 
           {selectedOrder && (
@@ -459,6 +462,20 @@ const OrderManagement: React.FC = () => {
                         <span className="text-gray-600">Total Amount:</span>
                         <span className="font-semibold">{formatCurrency(selectedOrder.total_amount)}</span>
                       </div>
+                      {selectedOrder.discount_total && selectedOrder.discount_total > 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Discount:</span>
+                          <span className="text-green-600 font-semibold">-{formatCurrency(selectedOrder.discount_total)}</span>
+                        </div>
+                      )}
+                      {selectedOrder.coupon_code && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Coupon Used:</span>
+                          <Badge variant="secondary" className="text-xs">
+                            {selectedOrder.coupon_code}
+                          </Badge>
+                        </div>
+                      )}
                       <div className="flex justify-between">
                         <span className="text-gray-600">Final Amount:</span>
                         <span className="font-semibold">{formatCurrency(selectedOrder.final_amount)}</span>

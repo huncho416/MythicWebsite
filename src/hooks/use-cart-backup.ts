@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+﻿import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Tables } from '@/integrations/supabase/types';
@@ -38,7 +38,6 @@ interface UseCartReturn {
   cart: Cart | null;
   items: CartItem[];
   totals: CartTotals;
-  saleDiscount: number;
   loading: boolean;
   addItem: (productId: string, quantity?: number) => Promise<void>;
   updateQuantity: (itemId: string, quantity: number) => Promise<void>;
@@ -71,10 +70,8 @@ export const useCart = (): UseCartReturn => {
     total: 0,
     valid_coupon: false,
   });
-  const [saleDiscount, setSaleDiscount] = useState(0); // Track sale savings separately
   const [loading, setLoading] = useState(true);
   const [couponCode, setCouponCode] = useState<string | null>(null);
-  const [cartVersion, setCartVersion] = useState(0); // Force re-render trigger
   const { toast } = useToast();
 
   // Get or create cart
@@ -179,29 +176,9 @@ export const useCart = (): UseCartReturn => {
       setCart(cartData);
       setItems(cartData.cart_items || []);
       
-      // Calculate sale discount separately
-      let totalSaleDiscount = 0;
-      if (cartData.cart_items) {
-        for (const item of cartData.cart_items) {
-          const product = item.store_packages;
-          if (product) {
-            const originalPrice = product.price;
-            const paidPrice = item.unit_price;
-            const savings = (originalPrice - paidPrice) * item.quantity;
-            if (savings > 0) {
-              totalSaleDiscount += savings;
-            }
-          }
-        }
-      }
-      setSaleDiscount(totalSaleDiscount);
-      
       if (cartData.id) {
         await calculateTotals(cartData.id, couponCode || undefined);
       }
-      
-      // Trigger re-render
-      setCartVersion(prev => prev + 1);
     } catch (error) {
       console.error('Error loading cart:', error);
       toast({
@@ -231,35 +208,7 @@ export const useCart = (): UseCartReturn => {
 
       if (productError) throw productError;
 
-      // Get global sale settings to calculate final price
-      const { data: saleSettings } = await supabase
-        .from('store_settings')
-        .select('value')
-        .eq('key', 'global_sale')
-        .single();
-
-      let unitPrice = product.price;
-
-      // Apply individual package sale price if available
-      if (product.sale_price && product.sale_price < product.price) {
-        unitPrice = product.sale_price;
-      } 
-      // Apply global sale if active and no individual sale price
-      else if (saleSettings?.value) {
-        const saleData = saleSettings.value as any;
-        const now = new Date();
-        const startDate = saleData.start_date ? new Date(saleData.start_date) : null;
-        const endDate = saleData.end_date ? new Date(saleData.end_date) : null;
-        
-        // Check if sale is currently active
-        const isActive = saleData.enabled && 
-          (!startDate || now >= startDate) && 
-          (!endDate || now <= endDate);
-          
-        if (isActive && saleData.percentage > 0) {
-          unitPrice = product.price * (1 - saleData.percentage / 100);
-        }
-      }
+      const unitPrice = product.sale_price || product.price;
 
       // Check if item already exists in cart
       const existingItem = items.find(item => item.product_id === productId);
@@ -285,8 +234,7 @@ export const useCart = (): UseCartReturn => {
           description: `${product.name} has been added to your cart`,
         });
 
-        // Force refresh immediately after adding
-        setTimeout(() => refreshCart(), 100);
+        await refreshCart();
       }
     } catch (error) {
       console.error('Error adding item to cart:', error);
@@ -296,7 +244,7 @@ export const useCart = (): UseCartReturn => {
         variant: "destructive",
       });
     }
-  }, [cart, items, refreshCart, toast]);
+  }, [cart, items, updateQuantity, refreshCart, toast]);
 
   // Update item quantity
   const updateQuantity = useCallback(async (itemId: string, quantity: number) => {
@@ -316,8 +264,7 @@ export const useCart = (): UseCartReturn => {
 
       if (error) throw error;
 
-      // Force refresh immediately after updating
-      setTimeout(() => refreshCart(), 100);
+      await refreshCart();
     } catch (error) {
       console.error('Error updating quantity:', error);
       toast({
@@ -326,7 +273,7 @@ export const useCart = (): UseCartReturn => {
         variant: "destructive",
       });
     }
-  }, [refreshCart, toast]);
+  }, [removeItem, refreshCart, toast]);
 
   // Remove item from cart
   const removeItem = useCallback(async (itemId: string) => {
@@ -343,8 +290,7 @@ export const useCart = (): UseCartReturn => {
         description: "Item has been removed from your cart",
       });
 
-      // Force refresh immediately after removing
-      setTimeout(() => refreshCart(), 100);
+      await refreshCart();
     } catch (error) {
       console.error('Error removing item:', error);
       toast({
@@ -449,7 +395,6 @@ export const useCart = (): UseCartReturn => {
     cart,
     items,
     totals,
-    saleDiscount,
     loading,
     addItem,
     updateQuantity,

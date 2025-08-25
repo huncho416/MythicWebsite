@@ -50,6 +50,7 @@ export default function ForumManagement() {
   const [categories, setCategories] = useState<Tables<'forum_categories'>[]>([]);
   const [threads, setThreads] = useState<any[]>([]);
   const [replies, setReplies] = useState<any[]>([]);
+  const [tags, setTags] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("categories");
   
@@ -68,6 +69,17 @@ export default function ForumManagement() {
     min_role_to_post: "none"
   });
 
+  // Tag management state
+  const [showTagDialog, setShowTagDialog] = useState(false);
+  const [showEditTagDialog, setShowEditTagDialog] = useState(false);
+  const [editingTagId, setEditingTagId] = useState<string | null>(null);
+  const [tagForm, setTagForm] = useState({
+    name: "",
+    description: "",
+    color: "#6366f1",
+    icon: ""
+  });
+
   const { toast } = useToast();
 
   useEffect(() => {
@@ -78,17 +90,94 @@ export default function ForumManagement() {
     try {
       setLoading(true);
       
-      const [categoriesRes, threadsRes, postsRes] = await Promise.all([
-        supabase.from('forum_categories').select('*').order('sort_order', { ascending: true }),
-        supabase.from('forum_threads').select('*').order('created_at', { ascending: false }).limit(50),
-        supabase.from('forum_posts').select('*').order('created_at', { ascending: false }).limit(50)
-      ]);
+      // Load categories
+      const categoriesRes = await supabase
+        .from('forum_categories')
+        .select('*')
+        .order('sort_order', { ascending: true });
+
+      // Load tags
+      const tagsRes = await supabase
+        .from('forum_thread_tags')
+        .select('*')
+        .order('is_system', { ascending: false });
+
+      // Load threads with separate lookups
+      const threadsRes = await supabase
+        .from('forum_threads')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      // Load posts with separate lookups
+      const postsRes = await supabase
+        .from('forum_posts')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(50);
 
       if (categoriesRes.data) {
         setCategories(categoriesRes.data);
       }
-      if (threadsRes.data) setThreads(threadsRes.data);
-      if (postsRes.data) setReplies(postsRes.data);
+      if (tagsRes.data) {
+        setTags(tagsRes.data);
+      }
+
+      // Process threads with separate lookups
+      if (threadsRes.data) {
+        const threadsWithDetails = await Promise.all(
+          threadsRes.data.map(async (thread) => {
+            // Get category
+            const categoryRes = await supabase
+              .from('forum_categories')
+              .select('id, name')
+              .eq('id', thread.category_id)
+              .maybeSingle();
+
+            // Get author profile
+            const authorRes = await supabase
+              .from('user_profiles')
+              .select('id, username, display_name')
+              .eq('user_id', thread.author_id)
+              .maybeSingle();
+
+            return {
+              ...thread,
+              forum_categories: categoryRes.data,
+              author_profile: authorRes.data
+            };
+          })
+        );
+        setThreads(threadsWithDetails);
+      }
+
+      // Process posts with separate lookups
+      if (postsRes.data) {
+        const postsWithDetails = await Promise.all(
+          postsRes.data.map(async (post) => {
+            // Get thread
+            const threadRes = await supabase
+              .from('forum_threads')
+              .select('id, title')
+              .eq('id', post.thread_id)
+              .maybeSingle();
+
+            // Get author profile
+            const authorRes = await supabase
+              .from('user_profiles')
+              .select('id, username, display_name')
+              .eq('user_id', post.author_id)
+              .maybeSingle();
+
+            return {
+              ...post,
+              forum_threads: threadRes.data,
+              author_profile: authorRes.data
+            };
+          })
+        );
+        setReplies(postsWithDetails);
+      }
       
     } catch (error) {
       console.error('Error loading forum data:', error);
@@ -409,6 +498,120 @@ export default function ForumManagement() {
     return colors[type] || "bg-gray-500";
   };
 
+  // Tag management functions
+  const createTag = async () => {
+    try {
+      const { error } = await supabase
+        .from('forum_thread_tags')
+        .insert({
+          name: tagForm.name,
+          description: tagForm.description,
+          color: tagForm.color,
+          icon: tagForm.icon,
+          is_system: false
+        });
+
+      if (error) throw error;
+
+      toast({ title: "Success", description: "Tag created successfully" });
+      closeTagDialog();
+      loadForumData();
+    } catch (error) {
+      console.error('Error creating tag:', error);
+      toast({
+        title: "Error",
+        description: "Failed to create tag",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const updateTag = async () => {
+    if (!editingTagId) return;
+
+    try {
+      const { error } = await supabase
+        .from('forum_thread_tags')
+        .update({
+          name: tagForm.name,
+          description: tagForm.description,
+          color: tagForm.color,
+          icon: tagForm.icon
+        })
+        .eq('id', editingTagId);
+
+      if (error) throw error;
+
+      toast({ title: "Success", description: "Tag updated successfully" });
+      closeEditTagDialog();
+      loadForumData();
+    } catch (error) {
+      console.error('Error updating tag:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update tag",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const deleteTag = async (tagId: string, tagName: string) => {
+    if (!confirm(`Are you sure you want to delete the tag "${tagName}"? This will remove it from all threads.`)) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('forum_thread_tags')
+        .delete()
+        .eq('id', tagId);
+
+      if (error) throw error;
+
+      toast({ title: "Success", description: "Tag deleted successfully" });
+      loadForumData();
+    } catch (error) {
+      console.error('Error deleting tag:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete tag",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const openEditTag = (tag: any) => {
+    setTagForm({
+      name: tag.name || "",
+      description: tag.description || "",
+      color: tag.color || "#6366f1",
+      icon: tag.icon || ""
+    });
+    setEditingTagId(tag.id);
+    setShowEditTagDialog(true);
+  };
+
+  const closeTagDialog = () => {
+    setShowTagDialog(false);
+    setTagForm({
+      name: "",
+      description: "",
+      color: "#6366f1",
+      icon: ""
+    });
+  };
+
+  const closeEditTagDialog = () => {
+    setShowEditTagDialog(false);
+    setEditingTagId(null);
+    setTagForm({
+      name: "",
+      description: "",
+      color: "#6366f1",
+      icon: ""
+    });
+  };
+
   const closeCategoryDialog = () => {
     setShowCategoryDialog(false);
     setEditingCategoryId(null);
@@ -448,10 +651,11 @@ export default function ForumManagement() {
         </CardHeader>
         <CardContent>
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="categories">Categories</TabsTrigger>
               <TabsTrigger value="threads">Threads</TabsTrigger>
               <TabsTrigger value="replies">Recent Replies</TabsTrigger>
+              <TabsTrigger value="tags">Tags</TabsTrigger>
             </TabsList>
 
             <TabsContent value="categories" className="space-y-4">
@@ -784,6 +988,139 @@ export default function ForumManagement() {
                 </Table>
               </div>
             </TabsContent>
+
+            <TabsContent value="tags" className="space-y-4">
+              <div className="flex justify-between items-center">
+                <h3 className="text-lg font-medium">Thread Tags</h3>
+                <Dialog open={showTagDialog} onOpenChange={setShowTagDialog}>
+                  <DialogTrigger asChild>
+                    <Button>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Tag
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Create Thread Tag</DialogTitle>
+                      <DialogDescription>
+                        Add a new tag for forum threads
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="tagName">Name</Label>
+                          <Input
+                            id="tagName"
+                            value={tagForm.name}
+                            onChange={(e) => setTagForm({...tagForm, name: e.target.value})}
+                            placeholder="e.g., urgent, solved"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="tagIcon">Icon (emoji)</Label>
+                          <Input
+                            id="tagIcon"
+                            value={tagForm.icon}
+                            onChange={(e) => setTagForm({...tagForm, icon: e.target.value})}
+                            placeholder="e.g., 🔥, ✅"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <Label htmlFor="tagColor">Color</Label>
+                        <Input
+                          id="tagColor"
+                          type="color"
+                          value={tagForm.color}
+                          onChange={(e) => setTagForm({...tagForm, color: e.target.value})}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="tagDescription">Description</Label>
+                        <Textarea
+                          id="tagDescription"
+                          value={tagForm.description}
+                          onChange={(e) => setTagForm({...tagForm, description: e.target.value})}
+                          placeholder="Describe when this tag should be used"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <Button variant="outline" onClick={closeTagDialog}>
+                        Cancel
+                      </Button>
+                      <Button onClick={createTag}>
+                        Create Tag
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
+
+              <div className="border rounded-lg">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Tag</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {tags.map((tag) => (
+                      <TableRow key={tag.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            <span style={{ color: tag.color }}>{tag.icon}</span>
+                            <div>
+                              <div className="font-medium">{tag.name}</div>
+                              <Badge 
+                                variant={tag.is_system ? "secondary" : "outline"}
+                                style={{ backgroundColor: tag.color + '20', color: tag.color, borderColor: tag.color }}
+                              >
+                                {tag.name}
+                              </Badge>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-sm text-muted-foreground">
+                            {tag.description || "No description"}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={tag.is_system ? "default" : "secondary"}>
+                            {tag.is_system ? "System" : "Custom"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => openEditTag(tag)}
+                              disabled={tag.is_system}
+                            >
+                              <Edit2 className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => deleteTag(tag.id, tag.name)}
+                              disabled={tag.is_system}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </TabsContent>
           </Tabs>
         </CardContent>
       </Card>
@@ -905,6 +1242,63 @@ export default function ForumManagement() {
             </Button>
             <Button onClick={updateCategory} disabled={!editingCategoryId}>
               Update Category
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Tag Dialog */}
+      <Dialog open={showEditTagDialog} onOpenChange={setShowEditTagDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Tag</DialogTitle>
+            <DialogDescription>
+              Update tag properties and appearance
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="editTagName">Name</Label>
+                <Input
+                  id="editTagName"
+                  value={tagForm.name}
+                  onChange={(e) => setTagForm({...tagForm, name: e.target.value})}
+                />
+              </div>
+              <div>
+                <Label htmlFor="editTagIcon">Icon (emoji)</Label>
+                <Input
+                  id="editTagIcon"
+                  value={tagForm.icon}
+                  onChange={(e) => setTagForm({...tagForm, icon: e.target.value})}
+                />
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="editTagColor">Color</Label>
+              <Input
+                id="editTagColor"
+                type="color"
+                value={tagForm.color}
+                onChange={(e) => setTagForm({...tagForm, color: e.target.value})}
+              />
+            </div>
+            <div>
+              <Label htmlFor="editTagDescription">Description</Label>
+              <Textarea
+                id="editTagDescription"
+                value={tagForm.description}
+                onChange={(e) => setTagForm({...tagForm, description: e.target.value})}
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={closeEditTagDialog}>
+              Cancel
+            </Button>
+            <Button onClick={updateTag}>
+              Update Tag
             </Button>
           </div>
         </DialogContent>

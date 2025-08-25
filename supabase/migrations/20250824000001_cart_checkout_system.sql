@@ -78,11 +78,14 @@ ADD COLUMN IF NOT EXISTS session_id text;
 
 -- Update order status enum if needed
 DO $$ BEGIN
-  ALTER TYPE order_status ADD VALUE IF NOT EXISTS 'awaiting_payment';
-  ALTER TYPE order_status ADD VALUE IF NOT EXISTS 'refunded';
-  ALTER TYPE order_status ADD VALUE IF NOT EXISTS 'cancelled';
+  -- Create the enum if it doesn't exist
+  CREATE TYPE order_status AS ENUM ('pending', 'processing', 'completed', 'cancelled', 'refunded', 'awaiting_payment');
 EXCEPTION
-  WHEN duplicate_object THEN null;
+  WHEN duplicate_object THEN
+    -- If it exists, add new values
+    ALTER TYPE order_status ADD VALUE IF NOT EXISTS 'awaiting_payment';
+    ALTER TYPE order_status ADD VALUE IF NOT EXISTS 'refunded';
+    ALTER TYPE order_status ADD VALUE IF NOT EXISTS 'cancelled';
 END $$;
 
 -- Payment Events Table (replaces payment_logs with better structure)
